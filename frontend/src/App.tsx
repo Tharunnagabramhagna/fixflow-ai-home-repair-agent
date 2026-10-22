@@ -182,7 +182,6 @@ export function App() {
               onOpenMobile={() => setMobileOpen(true)}
               onOpenReportModal={() => handleOpenReportModal()}
               onOpenRegisterModal={() => setRegisterModalOpen(true)}
-              onBackToLanding={navigateToLanding}
               appliances={appliances}
               repairCases={repairCases}
               onSelectAppliance={(a) => setPassportAppliance(a)}

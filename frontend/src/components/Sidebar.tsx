@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Home,
   Refrigerator,
@@ -43,6 +43,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [avatarError, setAvatarError] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
 
+  // Close mobile drawer on Escape key press
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onCloseMobile();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mobileOpen, onCloseMobile]);
+
+  // Lock body scroll when mobile drawer is open
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileOpen]);
+
   const workspaceItems: NavItem[] = [
     { id: 'overview', label: 'Overview', icon: Home },
     { id: 'appliances', label: 'My Appliances', icon: Refrigerator, badge: applianceCount, badgeTitle: `${applianceCount} registered appliances` },
@@ -72,25 +96,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
           onSelectTab(item.id);
           onCloseMobile();
         }}
-        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm transition-all text-left group ${
+        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm transition-all text-left group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32] ${
           isActive
             ? 'bg-[#DDE7DD] text-[#183B32] font-semibold shadow-2xs'
             : 'text-[#687871] hover:text-[#183B32] hover:bg-[#F6F4EE] font-medium'
         }`}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <Icon
-            className={`w-4 h-4 transition-colors ${
+            className={`w-4 h-4 shrink-0 transition-colors ${
               isActive ? 'text-[#183B32]' : 'text-[#687871] group-hover:text-[#183B32]'
             }`}
           />
-          <span>{item.label}</span>
+          <span className="truncate">{item.label}</span>
         </div>
 
         {item.badge !== undefined && item.badge > 0 && (
           <span
             title={item.badgeTitle}
-            className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+            className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ml-2 ${
               item.badgeColor || 'bg-[#DDE7DD] text-[#183B32]'
             }`}
           >
@@ -102,9 +126,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const content = (
-    <div className="flex flex-col h-full bg-white border-r border-[#E6E4DA] w-64 select-none relative overflow-hidden">
+    <div className="flex flex-col h-full w-full bg-white border-r border-[#E6E4DA] select-none relative">
       {/* Brand Header */}
-      <div className="p-6 pb-5 flex items-center justify-between">
+      <div className="p-6 pb-5 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <FixFlowLogo size="md" />
         </div>
@@ -112,8 +136,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {mobileOpen && (
           <button
             onClick={onCloseMobile}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 md:hidden"
-            aria-label="Close menu"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 md:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
+            aria-label="Close navigation menu"
           >
             <X className="w-5 h-5" />
           </button>
@@ -121,7 +145,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Navigation Sections */}
-      <nav className="flex-1 px-4 py-2 space-y-5 overflow-y-auto">
+      <nav className="flex-1 px-4 py-2 space-y-5 overflow-y-auto min-h-0">
         {/* Workspace Group */}
         <div>
           <span className="text-[10px] font-bold text-[#8A9A92] uppercase tracking-[0.14em] px-3 block mb-1.5">
@@ -144,11 +168,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 setShowHelpModal(true);
                 onCloseMobile();
               }}
-              className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm transition-all text-left text-[#687871] hover:text-[#183B32] hover:bg-[#F6F4EE] font-medium"
+              className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm transition-all text-left text-[#687871] hover:text-[#183B32] hover:bg-[#F6F4EE] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
             >
-              <div className="flex items-center gap-3">
-                <HelpCircle className="w-4 h-4 text-[#687871]" />
-                <span>Help & Support</span>
+              <div className="flex items-center gap-3 min-w-0">
+                <HelpCircle className="w-4 h-4 text-[#687871] shrink-0" />
+                <span className="truncate">Help & Support</span>
               </div>
             </button>
           </div>
@@ -156,14 +180,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       {/* Bottom Area: Alex Carter Profile & Public Website Link */}
-      <div className="p-4 pt-2 border-t border-[#E6E4DA]/80 relative z-10 space-y-2 bg-gradient-to-t from-white via-white/95 to-transparent">
+      <div className="p-4 border-t border-[#E6E4DA] bg-white relative z-10 space-y-2 shrink-0">
         {/* User Profile Card */}
-        <div
+        <button
+          type="button"
           onClick={() => {
             onSelectTab('settings');
             onCloseMobile();
           }}
-          className="flex items-center justify-between p-2 rounded-xl hover:bg-[#F6F4EE] cursor-pointer transition-colors group"
+          className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-[#F6F4EE] transition-colors group text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
           title="Manage Profile & Settings"
         >
           <div className="flex items-center gap-2.5 min-w-0">
@@ -189,16 +214,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
           <ChevronRight className="w-4 h-4 text-[#A3B2AA] group-hover:text-[#183B32] group-hover:translate-x-0.5 transition-all shrink-0" />
-        </div>
+        </button>
 
         {/* Back to Public Landing link */}
         {onBackToLanding && (
-          <div className="pt-1">
+          <div className="pt-1.5 border-t border-[#E6E4DA]/60">
             <button
-              onClick={onBackToLanding}
-              className="w-full text-center text-[11px] font-semibold text-[#687871] hover:text-[#183B32] transition-colors py-1 flex items-center justify-center gap-1"
+              type="button"
+              onClick={() => {
+                onBackToLanding();
+                onCloseMobile();
+              }}
+              className="w-full text-center text-xs font-semibold text-[#183B32] bg-[#EEF4EE] hover:bg-[#DDE7DD] border border-[#CBDBCB]/70 rounded-xl py-2 px-3 transition-colors flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
+              title="Return to FixFlow Public Website"
             >
-              <span>← Return to Public Website</span>
+              <span className="text-sm">←</span>
+              <span>Public Website</span>
             </button>
           </div>
         )}
@@ -248,43 +279,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
       )}
-
-      {/* Decorative Botanical Leaf Touch in bottom-left background */}
-      <div
-        className="absolute bottom-0 left-0 w-28 h-28 pointer-events-none opacity-25 -z-0"
-        aria-hidden="true"
-      >
-        <svg viewBox="0 0 120 120" fill="none" className="w-full h-full text-[#183B32]">
-          <path
-            d="M0 120 C 20 80, 50 60, 110 50 C 70 80, 40 100, 0 120 Z"
-            fill="currentColor"
-          />
-          <path
-            d="M10 120 C 35 90, 70 75, 120 70 C 85 95, 55 110, 10 120 Z"
-            fill="currentColor"
-            opacity="0.6"
-          />
-        </svg>
-      </div>
     </div>
   );
 
   return (
     <>
       {/* Desktop Sidebar (hidden on mobile) */}
-      <aside className="hidden md:block shrink-0 h-screen sticky top-0 z-30">
+      <aside className="hidden md:block w-64 shrink-0 h-screen h-[100dvh] sticky top-0 z-30 bg-white">
         {content}
       </aside>
 
       {/* Mobile Drawer (with slide-in transition & overlay) */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 md:hidden flex">
+        <div
+          className="fixed inset-0 z-50 md:hidden flex"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation drawer"
+        >
           <div
             className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
             onClick={onCloseMobile}
             aria-hidden="true"
           />
-          <div className="relative flex-1 flex flex-col max-w-xs w-full bg-white shadow-xl">
+          <div className="relative flex-1 flex flex-col w-72 max-w-[80vw] h-full bg-white shadow-2xl z-10">
             {content}
           </div>
         </div>

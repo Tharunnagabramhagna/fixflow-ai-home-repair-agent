@@ -11,6 +11,7 @@ import {
   Cpu,
   Coffee,
   Microwave,
+  Wine,
 } from 'lucide-react';
 import type { Appliance } from '../types';
 
@@ -23,6 +24,7 @@ interface ApplianceCardProps {
 
 function getApplianceImage(category: string, name: string, model: string): string | null {
   const text = `${category} ${name} ${model}`.toLowerCase();
+  if (text.includes('wine') || text.includes('cooler') || text.includes('cellar')) return '/appliances/wine_cooler.jpg';
   if (text.includes('fridge') || text.includes('refrigerator')) return '/appliances/refrigerator.jpg';
   if (text.includes('dish')) return '/appliances/dishwasher.jpg';
   if (text.includes('espresso') || text.includes('coffee')) return '/appliances/espresso.jpg';
@@ -33,6 +35,7 @@ function getApplianceImage(category: string, name: string, model: string): strin
 
 function getApplianceFallbackIcon(category: string, name: string) {
   const text = `${category} ${name}`.toLowerCase();
+  if (text.includes('wine')) return Wine;
   if (text.includes('fridge') || text.includes('refrigerator')) return Refrigerator;
   if (text.includes('dish')) return UtensilsCrossed;
   if (text.includes('coffee') || text.includes('espresso')) return Coffee;
@@ -68,11 +71,11 @@ export const ApplianceCard: React.FC<ApplianceCardProps> = ({
     : null;
 
   return (
-    <div className="bg-white rounded-2xl border border-[#E6E4DA] p-4 sm:p-5 shadow-xs hover:shadow-md hover:border-[#183B32]/30 transition-all flex flex-col justify-between group relative">
-      {/* Top Main Section: Product Image + Details Side-by-Side */}
-      <div className="flex items-start gap-3.5 sm:gap-4">
+    <div className="bg-white rounded-2xl border border-[#E6E4DA] p-4 sm:p-5 shadow-xs hover:shadow-md hover:border-[#183B32]/30 transition-all flex flex-col justify-between group relative min-w-0">
+      {/* Main Grid: Image Column (fixed width) + Content Column (minmax(0, 1fr)) */}
+      <div className="grid grid-cols-[88px_minmax(0,1fr)] sm:grid-cols-[104px_minmax(0,1fr)] gap-3.5 sm:gap-4 items-start min-w-0">
         {/* Product Photo Container */}
-        <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl bg-[#F6F4EE] border border-[#E6E4DA]/70 overflow-hidden shrink-0 flex items-center justify-center p-1">
+        <div className="w-[88px] h-[88px] sm:w-[104px] sm:h-[104px] rounded-xl bg-[#F6F4EE] border border-[#E6E4DA]/80 overflow-hidden shrink-0 flex items-center justify-center p-1.5 self-start">
           {imageSrc && !imgError ? (
             <img
               src={imageSrc}
@@ -91,22 +94,25 @@ export const ApplianceCard: React.FC<ApplianceCardProps> = ({
           )}
         </div>
 
-        {/* Right Details */}
-        <div className="flex-1 min-w-0">
-          {/* Header Row: Category, Location & Overflow Menu */}
-          <div className="flex items-center justify-between gap-1 mb-1">
+        {/* Content Column */}
+        <div className="min-w-0 flex flex-col">
+          {/* Row 1: Category & Location on left, Overflow menu on top right */}
+          <div className="flex items-center justify-between gap-1 mb-1 min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#F2F4F2] text-[#4A5D54] tracking-wide uppercase">
+              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#F2F4F2] text-[#4A5D54] tracking-wider uppercase shrink-0">
                 {appliance.category}
               </span>
               {appliance.location && (
-                <span className="text-[10px] text-[#687871] font-medium truncate max-w-[110px]" title={appliance.location}>
+                <span
+                  className="text-[10px] text-[#687871] font-medium truncate max-w-[120px]"
+                  title={appliance.location}
+                >
                   • {appliance.location}
                 </span>
               )}
             </div>
 
-            <div className="relative">
+            <div className="relative shrink-0">
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
                 className="p-1 text-[#8C9C94] hover:text-[#183B32] rounded-lg hover:bg-[#F6F4EE] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
@@ -150,45 +156,53 @@ export const ApplianceCard: React.FC<ApplianceCardProps> = ({
             </div>
           </div>
 
-          {/* Title: 2 lines allowed, prevents awkward truncation like Mac... */}
-          <h3 className="font-bold text-sm text-[#183B32] leading-snug tracking-tight line-clamp-2" title={appliance.name}>
+          {/* Row 2: Appliance Name (bold, readable, line-clamp-2 only when necessary) */}
+          <h3
+            className="font-bold text-sm sm:text-[15px] text-[#183B32] leading-snug tracking-tight line-clamp-2 break-words"
+            title={appliance.name}
+          >
             {appliance.name}
           </h3>
 
-          {/* Brand, Model & Serial Numbers */}
-          <div className="mt-1 space-y-0.5">
-            <p className="text-[11px] text-[#687871] leading-tight truncate">
-              <span className="font-semibold text-[#24342F]">{appliance.brand}</span> · {appliance.model}
+          {/* Row 3: Brand & Model */}
+          <div className="mt-1 space-y-0.5 min-w-0">
+            <p className="text-xs text-[#687871] leading-tight truncate">
+              <span className="font-semibold text-[#24342F]">{appliance.brand}</span>
+              <span className="text-[#A3B2AA] mx-1">·</span>
+              <span>{appliance.model}</span>
             </p>
             {appliance.serial_number && (
-              <p className="text-[10px] text-[#8C9C94] font-mono truncate" title={`Serial Number: ${appliance.serial_number}`}>
-                SN: {appliance.serial_number}
+              <p
+                className="text-[11px] text-[#8C9C94] font-mono truncate"
+                title={`Serial Number: ${appliance.serial_number}`}
+              >
+                <span className="font-sans font-medium text-[#687871]">SN:</span> {appliance.serial_number}
               </p>
             )}
           </div>
 
-          {/* Warranty Status Pill */}
-          <div className="mt-2">
+          {/* Row 4: Warranty Status Information */}
+          <div className="mt-2.5 min-w-0">
             {isWarrantyValid ? (
-              <div>
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#DDE7DD] text-[#183B32]">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#DDE7DD] text-[#183B32] shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#183B32]" />
                   Warranty Active
                 </span>
                 {formattedWarrantyDate && (
-                  <span className="block text-[10px] text-[#687871] mt-0.5">
+                  <span className="text-[10px] text-[#687871] font-medium truncate">
                     Valid until {formattedWarrantyDate}
                   </span>
                 )}
               </div>
             ) : (
-              <div>
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#F1F3F2] text-[#687871]">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#F1F3F2] text-[#687871] shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#8C9C94]" />
                   Warranty Expired
                 </span>
                 {formattedWarrantyDate && (
-                  <span className="block text-[10px] text-[#8C9C94] mt-0.5">
+                  <span className="text-[10px] text-[#8C9C94] font-medium truncate">
                     Expired {formattedWarrantyDate}
                   </span>
                 )}
@@ -196,7 +210,7 @@ export const ApplianceCard: React.FC<ApplianceCardProps> = ({
             )}
           </div>
 
-          {/* Active Repair Warning Badge (if any) */}
+          {/* Row 5: Active Repair Warning Badge (if any) */}
           {openCasesCount > 0 && (
             <div className="mt-1.5">
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#FDF6E9] text-[#D97706] border border-[#FDE68A]">
@@ -208,8 +222,8 @@ export const ApplianceCard: React.FC<ApplianceCardProps> = ({
         </div>
       </div>
 
-      {/* Bottom Action Links: View Repair Passport & Report Fault */}
-      <div className="mt-4 pt-3 border-t border-[#EFECE3] flex items-center justify-between gap-2">
+      {/* Bottom Action Area: Aligned consistently across cards */}
+      <div className="mt-4 pt-3 border-t border-[#EFECE3] flex items-center justify-between gap-2 shrink-0">
         <button
           onClick={() => onViewPassport(appliance)}
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#183B32] hover:text-[#102D27] hover:underline transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32] rounded"
@@ -220,7 +234,7 @@ export const ApplianceCard: React.FC<ApplianceCardProps> = ({
 
         <button
           onClick={() => onReportIssue(appliance)}
-          className="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-semibold text-[#B45309] bg-[#FEF3C7]/60 hover:bg-[#FEF3C7] border border-[#FDE68A] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706]"
+          className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold text-[#B45309] bg-[#FEF3C7]/70 hover:bg-[#FEF3C7] border border-[#FDE68A] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706]"
         >
           Report Fault
         </button>

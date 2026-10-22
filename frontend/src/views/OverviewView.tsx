@@ -35,18 +35,20 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
     return acc;
   }, {} as Record<string, number>);
 
-  // Prioritize showing refrigerator, dishwasher, and espresso/coffee for 3-card preview if present
+  // Prioritize featured appliances: Refrigerator, Espresso Coffee Machine, Smart Wine Cooler, Smart Microwave Oven
   const featuredAppliances = [...appliances].sort((a, b) => {
     const priority = (app: Appliance) => {
-      const cat = app.category.toLowerCase();
-      if (cat.includes('refriger')) return 1;
-      if (cat.includes('dish')) return 2;
-      if (cat.includes('coffee') || cat.includes('espresso')) return 3;
-      if (cat.includes('wash')) return 4;
-      return 5;
+      const name = app.name.toLowerCase();
+      if (name.includes('refriger')) return 1;
+      if (name.includes('espresso') || name.includes('coffee')) return 2;
+      if (name.includes('wine')) return 3;
+      if (name.includes('micro')) return 4;
+      if (name.includes('dish')) return 5;
+      if (name.includes('wash')) return 6;
+      return 10;
     };
     return priority(a) - priority(b);
-  }).slice(0, 3);
+  }).slice(0, 4);
 
   return (
     <div className="space-y-7">
@@ -117,7 +119,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                 No appliances registered yet. Click "+ Register Appliance" to get started.
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {featuredAppliances.map((appliance) => (
                   <ApplianceCard
                     key={appliance.id}

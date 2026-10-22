@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Menu, Search, Bell, ArrowLeft, Refrigerator, Wrench, X } from 'lucide-react';
+import { Menu, Search, Bell, Refrigerator, Wrench, X } from 'lucide-react';
 import type { Appliance, RepairCase } from '../types';
 
 interface HeaderProps {
@@ -7,7 +7,6 @@ interface HeaderProps {
   onOpenMobile: () => void;
   onOpenReportModal: () => void;
   onOpenRegisterModal: () => void;
-  onBackToLanding?: () => void;
   onSearch?: (query: string) => void;
   appliances?: Appliance[];
   repairCases?: RepairCase[];
@@ -19,7 +18,6 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   currentTab: _currentTab,
   onOpenMobile,
-  onBackToLanding,
   onSearch,
   appliances = [],
   repairCases = [],
@@ -200,18 +198,8 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
 
-        {/* Right: Public Website link, Notification Bell, User Initial Avatar */}
+        {/* Right: Notification Bell, User Initial Avatar */}
         <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-          {onBackToLanding && (
-            <button
-              onClick={onBackToLanding}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#183B32] bg-[#EEF4EE] hover:bg-[#DDE7DD] border border-[#DDE7DD] rounded-xl transition-all"
-              title="Return to FixFlow public homepage"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Website</span>
-            </button>
-          )}
 
           {/* Notification Bell */}
           <div className="relative">
