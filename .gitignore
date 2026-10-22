@@ -25,9 +25,15 @@ out/
 *.sqlite
 *.sqlite3
 *.db
+*.db-wal
+*.db-shm
 *.db-journal
 *.sqlite-journal
 *.sqlite3-journal
+database/backups/
+database/data/*.db
+database/data/*-wal
+database/data/*-shm
 
 # =========================
 # Test & Coverage

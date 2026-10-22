@@ -1,0 +1,32 @@
+{
+  "name": "fixflow-monorepo",
+  "version": "1.0.0",
+  "description": "FixFlow - AI-Powered Home Repair Management Monorepo",
+  "private": true,
+  "scripts": {
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:backend": "npm --prefix backend run build",
+    "build:frontend": "npm --prefix frontend run build",
+    "build": "npm --prefix backend run build && npm --prefix frontend run build",
+    "test:backend": "npm --prefix backend test",
+    "test": "npm --prefix backend test",
+    "lint:frontend": "npm --prefix frontend run lint",
+    "db:backup": "node scripts/create_verified_backup.js",
+    "seed": "npm --prefix backend run seed",
+    "install:all": "npm --prefix backend install && npm --prefix frontend install",
+    "dev:server": "npm --prefix backend run dev",
+    "dev:client": "npm --prefix frontend run dev",
+    "build:server": "npm --prefix backend run build",
+    "build:client": "npm --prefix frontend run build",
+    "test:server": "npm --prefix backend test"
+  },
+  "keywords": [
+    "fixflow",
+    "home-repair",
+    "alexa",
+    "hackathon"
+  ],
+  "author": "",
+  "license": "ISC"
+}

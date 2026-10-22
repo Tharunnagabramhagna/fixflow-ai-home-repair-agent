@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none">
+  <!-- Architectural Portal Outline in Deep Pine -->
+  <path
+    d="M6 27V5C6 4.44772 6.44772 4 7 4H22C22.5523 4 23 4.44772 23 5V27"
+    stroke="#183B32"
+    stroke-width="2.4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <!-- Angled Door Leaf forming F-contour -->
+  <path
+    d="M10 6.8L18 9V24.5L10 26.8V6.8Z"
+    fill="rgba(24,59,50,0.08)"
+    stroke="#183B32"
+    stroke-width="1.8"
+    stroke-linejoin="round"
+  />
+  <!-- Continuous Pathway in Champagne Brass -->
+  <path
+    d="M3 27C7 27 9.5 24.5 12 21.5C14.5 18.5 17 19 20 22C23 25 25.5 24 29 20"
+    stroke="#B49A68"
+    stroke-width="2.2"
+    stroke-linecap="round"
+  />
+  <!-- Brass Hardware Resolution Node -->
+  <circle cx="16.2" cy="16.8" r="1.2" fill="#B49A68" />
+  <circle cx="29" cy="20" r="1.8" fill="#B49A68" />
+</svg>
