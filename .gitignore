@@ -1,0 +1,86 @@
+# =========================
+# Dependencies
+# =========================
+node_modules/
+
+# =========================
+# Build & Distribution
+# =========================
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# =========================
+# Environment & Secrets
+# =========================
+.env
+.env.*
+# Keep .env.example in version control
+!.env.example
+
+# =========================
+# Database (SQLite)
+# =========================
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.sqlite-journal
+*.sqlite3-journal
+
+# =========================
+# Test & Coverage
+# =========================
+coverage/
+.nyc_output/
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# Temporary Uploads & Docs
+# =========================
+uploads/
+tmp/
+temp/
+private-docs/
+
+# =========================
+# IDE & Editor
+# =========================
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+*.swo
+*~
+
+# =========================
+# OS Generated
+# =========================
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# =========================
+# Misc
+# =========================
+.cache/
+.parcel-cache/
+.turbo/
