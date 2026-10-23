@@ -1,34 +1,48 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Menu, Search, Bell, Refrigerator, Wrench, X } from 'lucide-react';
-import type { Appliance, RepairCase } from '../types';
+import { Menu, Search, Bell, Refrigerator, Wrench, X, LogOut, Settings as SettingsIcon, ShieldCheck } from 'lucide-react';
+import type { Appliance, RepairCase, AuthUser } from '../types';
 
 interface HeaderProps {
   currentTab: string;
-  onOpenMobile: () => void;
-  onOpenReportModal: () => void;
-  onOpenRegisterModal: () => void;
+  onOpenDrawer: () => void;
+  isWideDesktop?: boolean;
+  desktopCollapsed?: boolean;
+  onOpenReportModal?: () => void;
+  onOpenRegisterModal?: () => void;
   onSearch?: (query: string) => void;
   appliances?: Appliance[];
   repairCases?: RepairCase[];
   onSelectAppliance?: (appliance: Appliance) => void;
   onSelectCase?: (repairCase: RepairCase) => void;
   onOpenSettings?: () => void;
+  user?: AuthUser | null;
+  onSignOut?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   currentTab: _currentTab,
-  onOpenMobile,
+  onOpenDrawer,
+  isWideDesktop = false,
+  desktopCollapsed = false,
   onSearch,
   appliances = [],
   repairCases = [],
   onSelectAppliance,
   onSelectCase,
   onOpenSettings,
+  user,
+  onSignOut,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showNotificationPopup, setShowNotificationPopup] = useState(false);
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  const userName = user?.name || 'Alex Carter';
+  const userEmail = user?.email || 'alex.carter@gmail.com';
+  const userInitial = userName.split(' ').map((n) => n[0]).join('').slice(0, 2) || 'AC';
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -39,11 +53,14 @@ export const Header: React.FC<HeaderProps> = ({
     }
   };
 
-  // Close search dropdown on click outside
+  // Close dropdowns on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
         setShowSearchDropdown(false);
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setShowUserDropdown(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -74,18 +91,24 @@ export const Header: React.FC<HeaderProps> = ({
 
   const hasResults = matchedAppliances.length > 0 || matchedCases.length > 0;
 
+  // Show hamburger when sidebar is not expanded in-flow (e.g. laptop, tablet, mobile, or collapsed desktop)
+  const showHamburger = !isWideDesktop || desktopCollapsed;
+
   return (
     <header className="bg-white/90 backdrop-blur-md border-b border-[#E6E4DA] sticky top-0 z-20 px-4 sm:px-6 py-3">
       <div className="flex items-center justify-between gap-4 max-w-7xl mx-auto w-full">
-        {/* Left: Mobile Menu Button & Tab Context on Mobile */}
+        {/* Left: Mobile & Laptop Hamburger Menu Button */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={onOpenMobile}
-            className="p-2 rounded-xl text-[#687871] hover:text-[#183B32] hover:bg-[#F6F4EE] md:hidden transition-colors"
-            aria-label="Open navigation menu"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
+          {showHamburger && (
+            <button
+              onClick={onOpenDrawer}
+              className="p-2 rounded-xl text-[#687871] hover:text-[#183B32] hover:bg-[#F6F4EE] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
+              aria-label="Open navigation menu"
+              title="Open Navigation"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         {/* Center: Global Search Bar with Live Result Dropdown */}
@@ -198,18 +221,16 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
 
-        {/* Right: Notification Bell, User Initial Avatar */}
+        {/* Right: Notification Bell & User Account Menu */}
         <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-
           {/* Notification Bell */}
           <div className="relative">
             <button
               onClick={() => setShowNotificationPopup(!showNotificationPopup)}
               aria-label="Notifications"
-              className="p-2 rounded-xl text-[#687871] hover:text-[#183B32] hover:bg-[#F6F4EE] transition-colors relative"
+              className="p-2 rounded-xl text-[#687871] hover:text-[#183B32] hover:bg-[#F6F4EE] transition-colors relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
             >
               <Bell className="w-4 h-4" />
-              {/* Notification Dot */}
               <span className="w-2 h-2 rounded-full bg-[#D97706] absolute top-1.5 right-1.5 ring-2 ring-white" />
             </button>
 
@@ -232,13 +253,60 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </div>
 
-          {/* User Avatar Initial circle */}
-          <div
-            onClick={onOpenSettings}
-            className="w-8 h-8 rounded-full bg-[#DDE7DD] text-[#183B32] font-bold text-xs flex items-center justify-center border border-[#CBDBCB] shadow-2xs cursor-pointer select-none hover:ring-2 hover:ring-[#183B32]/30 transition-all"
-            title="Alex Carter — Click for Settings & Profile"
-          >
-            AC
+          {/* User Profile Dropdown Menu */}
+          <div ref={userMenuRef} className="relative">
+            <button
+              onClick={() => setShowUserDropdown(!showUserDropdown)}
+              className="w-8 h-8 rounded-full bg-[#DDE7DD] text-[#183B32] font-bold text-xs flex items-center justify-center border border-[#CBDBCB] shadow-2xs cursor-pointer select-none hover:ring-2 hover:ring-[#183B32]/30 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
+              title={`${userName} — Account Menu`}
+              aria-label="User account menu"
+              aria-expanded={showUserDropdown}
+            >
+              {userInitial}
+            </button>
+
+            {showUserDropdown && (
+              <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl border border-[#E6E4DA] shadow-xl p-3 text-xs z-30 space-y-2.5 animate-in fade-in zoom-in-95 duration-150">
+                {/* Account Details */}
+                <div className="px-1.5 pb-2 border-b border-[#E6E4DA]">
+                  <p className="font-bold text-[#183B32] text-sm">{userName}</p>
+                  <p className="text-[11px] text-[#8A9A92] truncate">{userEmail}</p>
+                  <div className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#DDE7DD] text-[#183B32]">
+                    <ShieldCheck className="w-3 h-3 text-[#183B32]" />
+                    <span>Single-Household Demo Session</span>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="space-y-1">
+                  {onOpenSettings && (
+                    <button
+                      onClick={() => {
+                        setShowUserDropdown(false);
+                        onOpenSettings();
+                      }}
+                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left text-[#24342F] hover:bg-[#F6F4EE] hover:text-[#183B32] transition-colors"
+                    >
+                      <SettingsIcon className="w-4 h-4 text-[#687871]" />
+                      <span>Settings & Profile</span>
+                    </button>
+                  )}
+
+                  {onSignOut && (
+                    <button
+                      onClick={() => {
+                        setShowUserDropdown(false);
+                        onSignOut();
+                      }}
+                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left text-red-600 hover:bg-red-50 transition-colors font-medium"
+                    >
+                      <LogOut className="w-4 h-4 text-red-600" />
+                      <span>Sign Out</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

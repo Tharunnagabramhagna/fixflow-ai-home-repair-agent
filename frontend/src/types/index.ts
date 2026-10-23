@@ -90,3 +90,13 @@ export interface UpdateRepairStatusData {
   appointment_date?: string;
   appointment_notes?: string;
 }
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+}
+
+export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated' | 'error';
+

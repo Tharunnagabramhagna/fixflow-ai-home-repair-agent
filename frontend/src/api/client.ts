@@ -5,12 +5,14 @@ import type {
   CreateApplianceData,
   CreateRepairCaseData,
   UpdateRepairStatusData,
+  AuthUser,
 } from '../types';
 
 const API_BASE = '/api';
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...options?.headers,
@@ -30,6 +32,17 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  // Authentication & Session
+  getSession: () => fetchJson<{ authenticated: boolean; user: AuthUser | null; expires_at?: string }>(`${API_BASE}/auth/session`),
+  loginDemo: () =>
+    fetchJson<{ authenticated: boolean; user: AuthUser; token?: string }>(`${API_BASE}/auth/demo-login`, {
+      method: 'POST',
+    }),
+  logout: () =>
+    fetchJson<{ authenticated: boolean; message: string }>(`${API_BASE}/auth/logout`, {
+      method: 'POST',
+    }),
+
   // Health
   getHealth: () => fetchJson<{ status: string; service: string; version: string; timestamp: string }>(`${API_BASE}/health`),
 

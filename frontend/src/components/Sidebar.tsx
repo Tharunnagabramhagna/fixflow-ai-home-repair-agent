@@ -9,17 +9,26 @@ import {
   ChevronRight,
   X,
   Activity,
+  PanelLeftClose,
+  PanelLeftOpen,
+  LogOut,
 } from 'lucide-react';
 import { FixFlowLogo } from './brand/FixFlowLogo';
+import type { AuthUser } from '../types';
 
-interface SidebarProps {
+export interface SidebarProps {
   currentTab: string;
   onSelectTab: (tab: string) => void;
-  mobileOpen: boolean;
-  onCloseMobile: () => void;
+  drawerOpen: boolean;
+  onCloseDrawer: () => void;
+  isWideDesktop: boolean;
+  desktopCollapsed: boolean;
+  onToggleDesktopCollapse: () => void;
   applianceCount: number;
   openCasesCount: number;
   onBackToLanding?: () => void;
+  user?: AuthUser | null;
+  onSignOut?: () => void;
 }
 
 interface NavItem {
@@ -34,30 +43,35 @@ interface NavItem {
 export const Sidebar: React.FC<SidebarProps> = ({
   currentTab,
   onSelectTab,
-  mobileOpen,
-  onCloseMobile,
+  drawerOpen,
+  onCloseDrawer,
+  isWideDesktop,
+  desktopCollapsed,
+  onToggleDesktopCollapse,
   applianceCount,
   openCasesCount,
   onBackToLanding,
+  user,
+  onSignOut,
 }) => {
   const [avatarError, setAvatarError] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
 
-  // Close mobile drawer on Escape key press
+  // Close drawer on Escape key press
   useEffect(() => {
-    if (!mobileOpen) return;
+    if (!drawerOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onCloseMobile();
+        onCloseDrawer();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [mobileOpen, onCloseMobile]);
+  }, [drawerOpen, onCloseDrawer]);
 
-  // Lock body scroll when mobile drawer is open
+  // Lock body scroll when drawer is open
   useEffect(() => {
-    if (mobileOpen) {
+    if (drawerOpen) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -65,11 +79,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return () => {
       document.body.style.overflow = '';
     };
-  }, [mobileOpen]);
+  }, [drawerOpen]);
 
   const workspaceItems: NavItem[] = [
     { id: 'overview', label: 'Overview', icon: Home },
-    { id: 'appliances', label: 'My Appliances', icon: Refrigerator, badge: applianceCount, badgeTitle: `${applianceCount} registered appliances` },
+    {
+      id: 'appliances',
+      label: 'My Appliances',
+      icon: Refrigerator,
+      badge: applianceCount,
+      badgeTitle: `${applianceCount} registered appliances`,
+    },
     {
       id: 'repairs',
       label: 'Repair Cases',
@@ -86,7 +106,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'health', label: 'System Health', icon: Activity },
   ];
 
-  const renderNavButton = (item: NavItem) => {
+  const userName = user?.name || 'Alex Carter';
+  const userEmail = user?.email || 'alex.carter@gmail.com';
+  const userInitial = userName.split(' ').map((n) => n[0]).join('').slice(0, 2) || 'AC';
+
+  const renderNavButton = (item: NavItem, isDrawer: boolean = false) => {
     const Icon = item.icon;
     const isActive = currentTab === item.id;
     return (
@@ -94,7 +118,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         key={item.id}
         onClick={() => {
           onSelectTab(item.id);
-          onCloseMobile();
+          if (isDrawer) onCloseDrawer();
         }}
         className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm transition-all text-left group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32] ${
           isActive
@@ -125,34 +149,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
     );
   };
 
-  const content = (
+  const renderExpandedContent = (isDrawer: boolean = false) => (
     <div className="flex flex-col h-full w-full bg-white border-r border-[#E6E4DA] select-none relative">
       {/* Brand Header */}
-      <div className="p-6 pb-5 flex items-center justify-between shrink-0">
+      <div className="p-5 pb-4 flex items-center justify-between shrink-0 border-b border-[#E6E4DA]/60">
         <div className="flex items-center gap-3">
           <FixFlowLogo size="md" />
         </div>
 
-        {mobileOpen && (
+        {isDrawer ? (
           <button
-            onClick={onCloseMobile}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 md:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
+            onClick={onCloseDrawer}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-[#F6F4EE] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
             aria-label="Close navigation menu"
           >
             <X className="w-5 h-5" />
+          </button>
+        ) : (
+          <button
+            onClick={onToggleDesktopCollapse}
+            className="p-1.5 rounded-lg text-[#687871] hover:text-[#183B32] hover:bg-[#F6F4EE] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
+            title="Collapse sidebar (compact icon rail)"
+            aria-label="Collapse sidebar"
+          >
+            <PanelLeftClose className="w-4 h-4" />
           </button>
         )}
       </div>
 
       {/* Navigation Sections */}
-      <nav className="flex-1 px-4 py-2 space-y-5 overflow-y-auto min-h-0">
+      <nav className="flex-1 px-4 py-4 space-y-6 overflow-y-auto min-h-0">
         {/* Workspace Group */}
         <div>
           <span className="text-[10px] font-bold text-[#8A9A92] uppercase tracking-[0.14em] px-3 block mb-1.5">
             Workspace
           </span>
           <div className="space-y-1">
-            {workspaceItems.map(renderNavButton)}
+            {workspaceItems.map((item) => renderNavButton(item, isDrawer))}
           </div>
         </div>
 
@@ -162,11 +195,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
             Account & Support
           </span>
           <div className="space-y-1">
-            {accountItems.map(renderNavButton)}
+            {accountItems.map((item) => renderNavButton(item, isDrawer))}
             <button
               onClick={() => {
                 setShowHelpModal(true);
-                onCloseMobile();
+                if (isDrawer) onCloseDrawer();
               }}
               className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm transition-all text-left text-[#687871] hover:text-[#183B32] hover:bg-[#F6F4EE] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
             >
@@ -179,14 +212,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </nav>
 
-      {/* Bottom Area: Alex Carter Profile & Public Website Link */}
+      {/* Bottom Area: User Profile, Sign Out & Public Website Link */}
       <div className="p-4 border-t border-[#E6E4DA] bg-white relative z-10 space-y-2 shrink-0">
         {/* User Profile Card */}
         <button
           type="button"
           onClick={() => {
             onSelectTab('settings');
-            onCloseMobile();
+            if (isDrawer) onCloseDrawer();
           }}
           className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-[#F6F4EE] transition-colors group text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
           title="Manage Profile & Settings"
@@ -196,34 +229,49 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {!avatarError ? (
                 <img
                   src="/avatars/alex_carter.jpg"
-                  alt="Alex Carter"
+                  alt={userName}
                   className="w-full h-full object-cover"
                   onError={() => setAvatarError(true)}
                 />
               ) : (
-                <span className="text-xs font-bold text-[#183B32]">AC</span>
+                <span className="text-xs font-bold text-[#183B32]">{userInitial}</span>
               )}
             </div>
             <div className="min-w-0">
               <span className="text-xs font-semibold text-[#24342F] block truncate group-hover:text-[#183B32]">
-                Alex Carter
+                {userName}
               </span>
               <span className="text-[11px] text-[#8A9A92] block truncate">
-                alex.carter@gmail.com
+                {userEmail}
               </span>
             </div>
           </div>
           <ChevronRight className="w-4 h-4 text-[#A3B2AA] group-hover:text-[#183B32] group-hover:translate-x-0.5 transition-all shrink-0" />
         </button>
 
-        {/* Back to Public Landing link */}
-        {onBackToLanding && (
-          <div className="pt-1.5 border-t border-[#E6E4DA]/60">
+        {/* Action Row: Sign Out + Public Website */}
+        <div className="pt-2 border-t border-[#E6E4DA]/60 space-y-1.5">
+          {onSignOut && (
             <button
               type="button"
               onClick={() => {
+                if (isDrawer) onCloseDrawer();
+                onSignOut();
+              }}
+              className="w-full text-xs font-semibold text-[#687871] hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-200 rounded-xl py-2 px-3 transition-colors flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
+              title="Sign out of FixFlow household session"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign Out</span>
+            </button>
+          )}
+
+          {onBackToLanding && (
+            <button
+              type="button"
+              onClick={() => {
+                if (isDrawer) onCloseDrawer();
                 onBackToLanding();
-                onCloseMobile();
               }}
               className="w-full text-center text-xs font-semibold text-[#183B32] bg-[#EEF4EE] hover:bg-[#DDE7DD] border border-[#CBDBCB]/70 rounded-xl py-2 px-3 transition-colors flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
               title="Return to FixFlow Public Website"
@@ -231,11 +279,169 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span className="text-sm">←</span>
               <span>Public Website</span>
             </button>
-          </div>
-        )}
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderCollapsedContent = () => (
+    <div className="flex flex-col items-center h-full w-full bg-white border-r border-[#E6E4DA] py-4 select-none">
+      {/* Top Brand Mark & Expand Button */}
+      <div className="flex flex-col items-center gap-3 shrink-0 pb-3 border-b border-[#E6E4DA]/60 w-full px-2">
+        <FixFlowLogo size="sm" showWordmark={false} />
+        <button
+          onClick={onToggleDesktopCollapse}
+          className="p-2 rounded-xl text-[#687871] hover:text-[#183B32] hover:bg-[#F6F4EE] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
+          title="Expand sidebar"
+          aria-label="Expand sidebar"
+        >
+          <PanelLeftOpen className="w-5 h-5" />
+        </button>
       </div>
 
-      {/* Help Modal */}
+      {/* Nav Icons */}
+      <nav className="flex-1 w-full px-2 py-4 space-y-2 overflow-y-auto min-h-0 flex flex-col items-center">
+        {workspaceItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = currentTab === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => onSelectTab(item.id)}
+              className={`relative p-3 rounded-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32] ${
+                isActive
+                  ? 'bg-[#DDE7DD] text-[#183B32] shadow-2xs'
+                  : 'text-[#687871] hover:text-[#183B32] hover:bg-[#F6F4EE]'
+              }`}
+              title={`${item.label}${item.badge ? ` (${item.badge})` : ''}`}
+              aria-label={item.label}
+            >
+              <Icon className="w-5 h-5" />
+              {item.badge !== undefined && item.badge > 0 && (
+                <span
+                  className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-[#D97706] ring-2 ring-white"
+                  title={`${item.badge} active`}
+                />
+              )}
+            </button>
+          );
+        })}
+
+        <div className="w-8 border-t border-[#E6E4DA] my-2" />
+
+        {accountItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = currentTab === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => onSelectTab(item.id)}
+              className={`p-3 rounded-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32] ${
+                isActive
+                  ? 'bg-[#DDE7DD] text-[#183B32] shadow-2xs'
+                  : 'text-[#687871] hover:text-[#183B32] hover:bg-[#F6F4EE]'
+              }`}
+              title={item.label}
+              aria-label={item.label}
+            >
+              <Icon className="w-5 h-5" />
+            </button>
+          );
+        })}
+
+        <button
+          onClick={() => setShowHelpModal(true)}
+          className="p-3 rounded-xl text-[#687871] hover:text-[#183B32] hover:bg-[#F6F4EE] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
+          title="Help & Support"
+          aria-label="Help & Support"
+        >
+          <HelpCircle className="w-5 h-5" />
+        </button>
+      </nav>
+
+      {/* Bottom Icons: Profile, Website, Sign Out */}
+      <div className="pt-3 border-t border-[#E6E4DA]/60 flex flex-col items-center gap-2.5 w-full px-2 shrink-0">
+        <button
+          onClick={() => onSelectTab('settings')}
+          className="w-9 h-9 rounded-full overflow-hidden bg-[#DDE7DD] border border-[#CBDBCB] flex items-center justify-center hover:ring-2 hover:ring-[#183B32] transition-all"
+          title={`${userName} (Settings & Profile)`}
+          aria-label="Profile and Settings"
+        >
+          {!avatarError ? (
+            <img
+              src="/avatars/alex_carter.jpg"
+              alt={userName}
+              className="w-full h-full object-cover"
+              onError={() => setAvatarError(true)}
+            />
+          ) : (
+            <span className="text-xs font-bold text-[#183B32]">{userInitial}</span>
+          )}
+        </button>
+
+        {onBackToLanding && (
+          <button
+            onClick={onBackToLanding}
+            className="p-2.5 rounded-xl text-[#183B32] bg-[#EEF4EE] hover:bg-[#DDE7DD] transition-colors"
+            title="Return to Public Website"
+            aria-label="Return to Public Website"
+          >
+            <span className="text-sm font-bold">←</span>
+          </button>
+        )}
+
+        {onSignOut && (
+          <button
+            onClick={onSignOut}
+            className="p-2.5 rounded-xl text-[#687871] hover:text-red-700 hover:bg-red-50 transition-colors"
+            title="Sign Out"
+            aria-label="Sign Out"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      {/* 1. WIDE DESKTOP IN-FLOW SIDEBAR (Visible only when width >= 1440) */}
+      {isWideDesktop && (
+        <aside
+          className={`shrink-0 h-screen h-[100dvh] sticky top-0 z-30 transition-all duration-200 ${
+            desktopCollapsed ? 'w-20' : 'w-64'
+          }`}
+          aria-label="Primary Navigation"
+        >
+          {desktopCollapsed ? renderCollapsedContent() : renderExpandedContent(false)}
+        </aside>
+      )}
+
+      {/* 2. LAPTOP / TABLET / MOBILE SLIDE-IN DRAWER (Rendered when width < 1440 and drawerOpen) */}
+      {!isWideDesktop && drawerOpen && (
+        <div
+          className="fixed inset-0 z-50 flex"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation drawer"
+        >
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+            onClick={onCloseDrawer}
+            aria-hidden="true"
+          />
+
+          {/* Drawer Panel */}
+          <div className="relative flex-1 flex flex-col w-72 max-w-[85vw] h-full bg-white shadow-2xl z-10 animate-in slide-in-from-left duration-200">
+            {renderExpandedContent(true)}
+          </div>
+        </div>
+      )}
+
+      {/* Universal Help Modal */}
       {showHelpModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-[#E6E4DA] p-6 space-y-4">
@@ -247,6 +453,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 onClick={() => setShowHelpModal(false)}
                 className="text-slate-400 hover:text-slate-600 p-1"
+                aria-label="Close help modal"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -276,34 +483,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 Close Help
               </button>
             </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
-  return (
-    <>
-      {/* Desktop Sidebar (hidden on mobile) */}
-      <aside className="hidden md:block w-64 shrink-0 h-screen h-[100dvh] sticky top-0 z-30 bg-white">
-        {content}
-      </aside>
-
-      {/* Mobile Drawer (with slide-in transition & overlay) */}
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-50 md:hidden flex"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Navigation drawer"
-        >
-          <div
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
-            onClick={onCloseMobile}
-            aria-hidden="true"
-          />
-          <div className="relative flex-1 flex flex-col w-72 max-w-[80vw] h-full bg-white shadow-2xl z-10">
-            {content}
           </div>
         </div>
       )}

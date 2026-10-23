@@ -12,12 +12,19 @@ import { AppliancePassportModal } from './components/AppliancePassportModal';
 import { ReportProblemModal } from './components/ReportProblemModal';
 import { RegisterApplianceModal } from './components/RegisterApplianceModal';
 import { StatusUpdateModal } from './components/StatusUpdateModal';
+import { SignInModal } from './components/landing/SignInModal';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { useWindowWidth } from './hooks/useWindowWidth';
+import { FixFlowLogo } from './components/brand/FixFlowLogo';
 import { api } from './api/client';
 import type { Appliance, RepairCase, DashboardSummary } from './types';
-import { CheckCircle2, AlertCircle } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
 
-export function App() {
-  // Navigation / View mode: 'landing' (public marketing website) vs 'dashboard' (app workspace)
+function FixFlowMain() {
+  const { status: authStatus, user, error: authError, logout, refreshSession } = useAuth();
+  const { isWideDesktop } = useWindowWidth();
+
+  // Navigation / View mode: 'landing' vs 'dashboard'
   const [viewMode, setViewMode] = useState<'landing' | 'dashboard'>(() => {
     if (typeof window !== 'undefined' && window.location.hash.includes('app')) {
       return 'dashboard';
@@ -26,13 +33,18 @@ export function App() {
   });
 
   const [currentTab, setCurrentTab] = useState('overview');
-  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Sidebar responsive states
+  // On wide desktop (>=1440): in-flow sidebar, expanded by default
+  const [desktopCollapsed, setDesktopCollapsed] = useState(false);
+  // On laptop (1024-1439), tablet, mobile: drawer, closed by default
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Data states
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [appliances, setAppliances] = useState<Appliance[]>([]);
   const [repairCases, setRepairCases] = useState<RepairCase[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Modal states
@@ -41,6 +53,7 @@ export function App() {
   const [reportDefaultAppliance, setReportDefaultAppliance] = useState<Appliance | null>(null);
   const [registerModalOpen, setRegisterModalOpen] = useState(false);
   const [statusModalCase, setStatusModalCase] = useState<RepairCase | null>(null);
+  const [authGateSignInOpen, setAuthGateSignInOpen] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -48,8 +61,9 @@ export function App() {
   };
 
   const loadAllData = useCallback(async () => {
+    if (authStatus !== 'authenticated') return;
     try {
-      setLoading(true);
+      setLoadingData(true);
       const [sumData, appsData, casesData] = await Promise.all([
         api.getDashboardSummary(),
         api.getAppliances(),
@@ -60,15 +74,18 @@ export function App() {
       setRepairCases(casesData);
     } catch (err: any) {
       console.error('Failed to load FixFlow dashboard data', err);
-      showToast(err.message || 'Failed to connect to backend server', 'error');
+      showToast(err.message || 'Failed to load household repair data', 'error');
     } finally {
-      setLoading(false);
+      setLoadingData(false);
     }
-  }, []);
+  }, [authStatus]);
 
+  // Load data whenever auth status becomes authenticated
   useEffect(() => {
-    loadAllData();
-  }, [loadAllData]);
+    if (authStatus === 'authenticated') {
+      loadAllData();
+    }
+  }, [authStatus, loadAllData]);
 
   // Sync hash routing
   useEffect(() => {
@@ -94,6 +111,16 @@ export function App() {
     setViewMode('landing');
     window.location.hash = '';
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await logout();
+      showToast('Signed out of FixFlow household session');
+      navigateToLanding();
+    } catch (err: any) {
+      showToast(err.message || 'Sign out failed', 'error');
+    }
   };
 
   // Handlers
@@ -153,102 +180,202 @@ export function App() {
           appliances={appliances}
           onLaunchDashboard={() => navigateToDashboard('overview')}
           onRegisterAppliance={() => {
-            navigateToDashboard('appliances');
-            setRegisterModalOpen(true);
+            if (authStatus === 'authenticated') {
+              navigateToDashboard('appliances');
+              setRegisterModalOpen(true);
+            } else {
+              setAuthGateSignInOpen(true);
+            }
           }}
           onReportProblem={() => {
-            navigateToDashboard('repairs');
-            handleOpenReportModal();
+            if (authStatus === 'authenticated') {
+              navigateToDashboard('repairs');
+              handleOpenReportModal();
+            } else {
+              setAuthGateSignInOpen(true);
+            }
           }}
           onOpenPassport={(appliance) => setPassportAppliance(appliance)}
         />
       ) : (
-        <div className="flex min-h-screen bg-[#F6F4EE] text-[#24342F] font-sans">
-          {/* Sidebar Navigation */}
-          <Sidebar
-            currentTab={currentTab}
-            onSelectTab={setCurrentTab}
-            mobileOpen={mobileOpen}
-            onCloseMobile={() => setMobileOpen(false)}
-            applianceCount={appliances.length}
-            openCasesCount={openCasesCount}
-            onBackToLanding={navigateToLanding}
-          />
+        /* Dashboard View Mode */
+        <>
+          {/* State 1: Verifying session */}
+          {authStatus === 'loading' && (
+            <div className="min-h-screen bg-[#F6F4EE] flex flex-col items-center justify-center p-6 text-[#24342F]">
+              <FixFlowLogo size="lg" />
+              <div className="mt-6 flex items-center gap-3 text-sm text-[#687871]">
+                <Loader2 className="w-5 h-5 animate-spin text-[#183B32]" />
+                <span>Verifying household session...</span>
+              </div>
+            </div>
+          )}
 
-          {/* Main Content Area */}
-          <div className="flex-1 flex flex-col min-w-0">
-            <Header
-              currentTab={currentTab}
-              onOpenMobile={() => setMobileOpen(true)}
-              onOpenReportModal={() => handleOpenReportModal()}
-              onOpenRegisterModal={() => setRegisterModalOpen(true)}
-              appliances={appliances}
-              repairCases={repairCases}
-              onSelectAppliance={(a) => setPassportAppliance(a)}
-              onSelectCase={(c) => {
-                setCurrentTab('repairs');
-                setStatusModalCase(c);
-              }}
-              onOpenSettings={() => setCurrentTab('settings')}
-            />
+          {/* State 2: Unauthenticated Access Gate */}
+          {authStatus === 'unauthenticated' && (
+            <div className="min-h-screen bg-[#F6F4EE] flex flex-col items-center justify-center p-6 text-[#24342F]">
+              <div className="max-w-md w-full bg-white rounded-3xl p-8 border border-[#E6E4DA] shadow-xl text-center space-y-5 animate-in fade-in zoom-in-95">
+                <div className="flex justify-center">
+                  <FixFlowLogo size="md" />
+                </div>
+                <div>
+                  <h2 className="font-editorial text-2xl text-[#183B32] font-normal">
+                    Authentication Required
+                  </h2>
+                  <p className="text-xs text-[#687871] mt-2 leading-relaxed">
+                    You are attempting to access the private FixFlow homeowner dashboard. Please sign in to verify your household session.
+                  </p>
+                </div>
+                <div className="p-3.5 bg-[#F6F4EE] rounded-2xl text-xs text-left space-y-1.5 border border-[#E6E4DA]/60">
+                  <p className="font-semibold text-[#183B32]">Single-Household Prototype:</p>
+                  <p className="text-[#687871]">
+                    Enter as the verified demo homeowner (Alex Carter) to inspect digital repair passports and active cases.
+                  </p>
+                </div>
+                <div className="space-y-2 pt-2">
+                  <button
+                    onClick={() => setAuthGateSignInOpen(true)}
+                    className="w-full py-3 px-4 rounded-full bg-[#183B32] hover:bg-[#122C25] text-white text-sm font-semibold transition-all shadow-sm flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-[#183B32]/40"
+                  >
+                    <span>Sign In as Demo Homeowner</span>
+                    <ArrowRight className="w-4 h-4 text-[#B69A68]" />
+                  </button>
+                  <button
+                    onClick={navigateToLanding}
+                    className="w-full py-2.5 text-xs font-medium text-[#7E9088] hover:text-[#183B32] transition-colors focus:outline-none"
+                  >
+                    Return to Public Website
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
-            <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
-              {currentTab === 'overview' && (
-                <OverviewView
-                  summary={summary}
-                  appliances={appliances}
-                  repairCases={repairCases}
-                  loading={loading}
-                  onNavigateTab={setCurrentTab}
-                  onViewPassport={(a) => setPassportAppliance(a)}
-                  onReportIssue={handleOpenReportModal}
-                  onRegisterAppliance={() => setRegisterModalOpen(true)}
-                />
-              )}
+          {/* State 3: Session verification error */}
+          {authStatus === 'error' && (
+            <div className="min-h-screen bg-[#F6F4EE] flex flex-col items-center justify-center p-6 text-[#24342F]">
+              <div className="max-w-md w-full bg-white rounded-3xl p-8 border border-red-200 shadow-xl text-center space-y-4">
+                <AlertCircle className="w-10 h-10 text-red-600 mx-auto" />
+                <h2 className="text-lg font-bold text-[#183B32]">Connection Error</h2>
+                <p className="text-xs text-[#687871] leading-relaxed">
+                  {authError || 'Failed to verify session status with the FixFlow backend. Please ensure the backend server is running.'}
+                </p>
+                <div className="flex gap-2 justify-center pt-2">
+                  <button
+                    onClick={() => refreshSession()}
+                    className="py-2.5 px-6 rounded-full bg-[#183B32] text-white text-xs font-semibold hover:bg-[#102D27] transition-colors"
+                  >
+                    Retry Connection
+                  </button>
+                  <button
+                    onClick={navigateToLanding}
+                    className="py-2.5 px-4 rounded-full border border-[#E6E4DA] text-xs font-semibold hover:bg-slate-50 transition-colors"
+                  >
+                    Public Website
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
-              {currentTab === 'appliances' && (
-                <AppliancesView
-                  appliances={appliances}
-                  repairCases={repairCases}
-                  loading={loading}
-                  onOpenRegisterModal={() => setRegisterModalOpen(true)}
-                  onViewPassport={(a) => setPassportAppliance(a)}
-                  onReportIssue={handleOpenReportModal}
-                />
-              )}
+          {/* State 4: Authenticated Dashboard */}
+          {authStatus === 'authenticated' && (
+            <div className="flex min-h-screen bg-[#F6F4EE] text-[#24342F] font-sans">
+              {/* Responsive Collapsible Sidebar */}
+              <Sidebar
+                currentTab={currentTab}
+                onSelectTab={setCurrentTab}
+                drawerOpen={drawerOpen}
+                onCloseDrawer={() => setDrawerOpen(false)}
+                isWideDesktop={isWideDesktop}
+                desktopCollapsed={desktopCollapsed}
+                onToggleDesktopCollapse={() => setDesktopCollapsed(!desktopCollapsed)}
+                applianceCount={appliances.length}
+                openCasesCount={openCasesCount}
+                onBackToLanding={navigateToLanding}
+                user={user}
+                onSignOut={handleSignOut}
+              />
 
-              {currentTab === 'repairs' && (
-                <RepairCasesView
-                  repairCases={repairCases}
-                  appliances={appliances}
-                  loading={loading}
+              {/* Main Content Area */}
+              <div className="flex-1 flex flex-col min-w-0">
+                <Header
+                  currentTab={currentTab}
+                  onOpenDrawer={() => setDrawerOpen(true)}
+                  isWideDesktop={isWideDesktop}
+                  desktopCollapsed={desktopCollapsed}
                   onOpenReportModal={() => handleOpenReportModal()}
-                  onUpdateStatus={(c) => setStatusModalCase(c)}
-                  onViewPassport={(a) => setPassportAppliance(a)}
+                  onOpenRegisterModal={() => setRegisterModalOpen(true)}
+                  appliances={appliances}
+                  repairCases={repairCases}
+                  onSelectAppliance={(a) => setPassportAppliance(a)}
+                  onSelectCase={(c) => {
+                    setCurrentTab('repairs');
+                    setStatusModalCase(c);
+                  }}
+                  onOpenSettings={() => setCurrentTab('settings')}
+                  user={user}
+                  onSignOut={handleSignOut}
                 />
-              )}
 
-              {currentTab === 'history' && (
-                <RepairHistoryView
-                  summary={summary}
-                  loading={loading}
-                />
-              )}
+                <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+                  {currentTab === 'overview' && (
+                    <OverviewView
+                      summary={summary}
+                      appliances={appliances}
+                      repairCases={repairCases}
+                      loading={loadingData}
+                      onNavigateTab={setCurrentTab}
+                      onViewPassport={(a) => setPassportAppliance(a)}
+                      onReportIssue={handleOpenReportModal}
+                      onRegisterAppliance={() => setRegisterModalOpen(true)}
+                    />
+                  )}
 
-              {currentTab === 'settings' && <SettingsView onNavigateTab={setCurrentTab} />}
-              {currentTab === 'health' && <SystemHealthView />}
-            </main>
-          </div>
-        </div>
+                  {currentTab === 'appliances' && (
+                    <AppliancesView
+                      appliances={appliances}
+                      repairCases={repairCases}
+                      loading={loadingData}
+                      onOpenRegisterModal={() => setRegisterModalOpen(true)}
+                      onViewPassport={(a) => setPassportAppliance(a)}
+                      onReportIssue={handleOpenReportModal}
+                    />
+                  )}
+
+                  {currentTab === 'repairs' && (
+                    <RepairCasesView
+                      repairCases={repairCases}
+                      appliances={appliances}
+                      loading={loadingData}
+                      onOpenReportModal={() => handleOpenReportModal()}
+                      onUpdateStatus={(c) => setStatusModalCase(c)}
+                      onViewPassport={(a) => setPassportAppliance(a)}
+                    />
+                  )}
+
+                  {currentTab === 'history' && (
+                    <RepairHistoryView
+                      summary={summary}
+                      loading={loadingData}
+                    />
+                  )}
+
+                  {currentTab === 'settings' && <SettingsView onNavigateTab={setCurrentTab} />}
+                  {currentTab === 'health' && <SystemHealthView />}
+                </main>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
-      {/* Universal Modals (Accessible from both Landing and Dashboard) */}
+      {/* Universal Modals */}
       <AppliancePassportModal
         appliance={passportAppliance}
         onClose={() => setPassportAppliance(null)}
         onReportIssue={(a) => {
           setPassportAppliance(null);
-          if (viewMode === 'landing') navigateToDashboard('repairs');
           handleOpenReportModal(a);
         }}
       />
@@ -267,13 +394,29 @@ export function App() {
         onSuccess={handleApplianceCreated}
       />
 
-      <StatusUpdateModal
-        repairCase={statusModalCase}
-        onClose={() => setStatusModalCase(null)}
-        onSuccess={handleCaseUpdated}
+      {statusModalCase && (
+        <StatusUpdateModal
+          repairCase={statusModalCase}
+          onClose={() => setStatusModalCase(null)}
+          onSuccess={handleCaseUpdated}
+        />
+      )}
+
+      {/* Auth Gate Sign In Modal */}
+      <SignInModal
+        isOpen={authGateSignInOpen}
+        onClose={() => setAuthGateSignInOpen(false)}
+        onEnterDashboard={() => navigateToDashboard('overview')}
       />
     </div>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <AuthProvider>
+      <FixFlowMain />
+    </AuthProvider>
+  );
+}
+

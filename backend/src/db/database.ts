@@ -76,12 +76,27 @@ const FALLBACK_SCHEMA_SQL = `
     FOREIGN KEY (appliance_id) REFERENCES appliances(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS user_sessions (
+    id TEXT PRIMARY KEY,
+    token_hash TEXT NOT NULL UNIQUE,
+    user_id TEXT NOT NULL,
+    user_name TEXT NOT NULL,
+    user_email TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'homeowner',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at TEXT NOT NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_repair_cases_appliance ON repair_cases(appliance_id);
   CREATE INDEX IF NOT EXISTS idx_repair_cases_status ON repair_cases(status);
   CREATE INDEX IF NOT EXISTS idx_repair_events_case ON repair_events(case_id);
   CREATE INDEX IF NOT EXISTS idx_repair_events_created ON repair_events(created_at);
   CREATE INDEX IF NOT EXISTS idx_warranty_docs_appliance ON warranty_documents(appliance_id);
+  CREATE INDEX IF NOT EXISTS idx_user_sessions_token_hash ON user_sessions(token_hash);
+  CREATE INDEX IF NOT EXISTS idx_user_sessions_expires ON user_sessions(expires_at);
 `;
+
+const SESSIONS_SCHEMA_FILE_PATH = path.resolve(__dirname, '..', '..', '..', 'database', 'schema', '002_sessions_schema.sql');
 
 export function initializeDatabase(targetDb?: DatabaseType): void {
   const activeDb = targetDb || db;
@@ -94,6 +109,26 @@ export function initializeDatabase(targetDb?: DatabaseType): void {
   }
 
   activeDb.exec(schemaSql);
+
+  // Apply sessions schema migration if exists
+  if (fs.existsSync(SESSIONS_SCHEMA_FILE_PATH)) {
+    activeDb.exec(fs.readFileSync(SESSIONS_SCHEMA_FILE_PATH, 'utf-8'));
+  } else {
+    activeDb.exec(`
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        id TEXT PRIMARY KEY,
+        token_hash TEXT NOT NULL UNIQUE,
+        user_id TEXT NOT NULL,
+        user_name TEXT NOT NULL,
+        user_email TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'homeowner',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        expires_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_user_sessions_token_hash ON user_sessions(token_hash);
+      CREATE INDEX IF NOT EXISTS idx_user_sessions_expires ON user_sessions(expires_at);
+    `);
+  }
 }
 
 export default db;
