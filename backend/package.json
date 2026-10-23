@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "seed": "tsx -e \"require('./src/db/seed').seedDatabase()\"",
-    "test": "vitest run"
+    "test": "vitest run --no-file-parallelism"
   },
   "keywords": [],
   "author": "",

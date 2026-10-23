@@ -13,6 +13,7 @@ import { ReportProblemModal } from './components/ReportProblemModal';
 import { RegisterApplianceModal } from './components/RegisterApplianceModal';
 import { StatusUpdateModal } from './components/StatusUpdateModal';
 import { SignInModal } from './components/landing/SignInModal';
+import { AssistantPanel } from './components/AssistantPanel';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useWindowWidth } from './hooks/useWindowWidth';
 import { FixFlowLogo } from './components/brand/FixFlowLogo';
@@ -449,6 +450,7 @@ function FixFlowMain() {
                       onViewPassport={(a) => setPassportAppliance(a)}
                       onReportIssue={handleOpenReportModal}
                       onRegisterAppliance={handleOpenRegisterModal}
+                      onRefreshData={loadAllData}
                     />
                   )}
 
@@ -479,6 +481,30 @@ function FixFlowMain() {
                       summary={summary}
                       loading={loadingData}
                     />
+                  )}
+
+                  {currentTab === 'assistant' && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h1 className="text-2xl sm:text-3xl font-bold text-[#183B32] tracking-tight">
+                            AI Repair Assistant
+                          </h1>
+                          <p className="text-sm text-[#687871] mt-1">
+                            Natural language appliance diagnostics, warranty verification, and repair proposals.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="h-[680px] w-full">
+                        <AssistantPanel
+                          appliances={appliances}
+                          onOpenReportModal={handleOpenReportModal}
+                          onNavigateTab={setCurrentTab}
+                          onViewPassport={(a) => setPassportAppliance(a)}
+                          onRefreshData={loadAllData}
+                        />
+                      </div>
+                    </div>
                   )}
 
                   {currentTab === 'settings' && (

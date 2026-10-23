@@ -4,6 +4,7 @@ import authRouter from './routes/auth';
 import appliancesRouter from './routes/appliances';
 import repairsRouter from './routes/repairs';
 import dashboardRouter from './routes/dashboard';
+import assistantRouter from './routes/assistant';
 import { optionalAuth } from './middleware/auth';
 
 const app = express();
@@ -39,6 +40,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/appliances', optionalAuth, appliancesRouter);
 app.use('/api/repairs', optionalAuth, repairsRouter);
 app.use('/api/dashboard', optionalAuth, dashboardRouter);
+app.use('/api/assistant', optionalAuth, assistantRouter);
 
 
 // Centralized error handling

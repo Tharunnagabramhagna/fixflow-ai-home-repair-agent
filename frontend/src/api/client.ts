@@ -121,4 +121,27 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+
+  // AI Repair Assistant (Phase 3)
+  sendAssistantMessage: (
+    messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
+    applianceId?: string
+  ) =>
+    fetchJson<any>(`${API_BASE}/assistant/chat`, {
+      method: 'POST',
+      body: JSON.stringify({ messages, applianceId }),
+    }),
+
+  confirmAssistantAction: (
+    token: string,
+    action: string,
+    args: Record<string, any>
+  ) =>
+    fetchJson<any>(`${API_BASE}/assistant/confirm`, {
+      method: 'POST',
+      body: JSON.stringify({ token, action, arguments: args }),
+    }),
+
+  getAssistantConfig: () =>
+    fetchJson<any>(`${API_BASE}/assistant/config`),
 };

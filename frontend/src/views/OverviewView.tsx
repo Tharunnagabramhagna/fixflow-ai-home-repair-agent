@@ -15,6 +15,7 @@ interface OverviewViewProps {
   onViewPassport: (appliance: Appliance) => void;
   onReportIssue: (appliance?: Appliance | string) => void;
   onRegisterAppliance?: () => void;
+  onRefreshData?: () => void;
 }
 
 export const OverviewView: React.FC<OverviewViewProps> = ({
@@ -26,6 +27,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   onViewPassport,
   onReportIssue,
   onRegisterAppliance,
+  onRefreshData,
 }) => {
   // Map open cases count per appliance
   const openCasesByAppliance = repairCases.reduce((acc, c) => {
@@ -148,6 +150,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             onOpenReportModal={(text) => onReportIssue(text)}
             onNavigateTab={onNavigateTab}
             onViewPassport={onViewPassport}
+            onRefreshData={onRefreshData}
           />
         </div>
       </div>

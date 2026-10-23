@@ -14,6 +14,7 @@ import {
   Compass,
   LogIn,
   ArrowLeft,
+  Sparkles,
 } from 'lucide-react';
 import { FixFlowLogo } from './brand/FixFlowLogo';
 import type { AuthUser } from '../types';
@@ -105,6 +106,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badgeTitle: `${openCasesCount} active repair cases requiring attention`,
     },
     { id: 'history', label: 'Repair History', icon: History },
+    {
+      id: 'assistant',
+      label: 'AI Assistant',
+      icon: Sparkles,
+      badgeTitle: 'Conversational repair triage & MCP diagnostics',
+    },
   ];
 
   const accountItems: NavItem[] = [
