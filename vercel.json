@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/api",
+      "destination": "https://fixflow-ai-home-repair-agent.onrender.com/api"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "https://fixflow-ai-home-repair-agent.onrender.com/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

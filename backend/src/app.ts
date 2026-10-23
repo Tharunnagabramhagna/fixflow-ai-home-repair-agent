@@ -15,13 +15,26 @@ const app = express();
 // Trust reverse proxy (Railway, Vercel rewrite, Cloudflare)
 app.set('trust proxy', 1);
 
+// Production default origins that are always permitted
+const PRODUCTION_ALLOWED_ORIGINS = [
+  'https://fixflow-ai-home-repair-agent.vercel.app',
+];
+
 // Helper to parse allowed origins from comma-separated CORS_ORIGIN
 function getAllowedOrigins(): string[] {
   const envOrigins = process.env.CORS_ORIGIN || '';
-  return envOrigins
+  const origins = envOrigins
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);
+
+  for (const origin of PRODUCTION_ALLOWED_ORIGINS) {
+    if (!origins.includes(origin)) {
+      origins.push(origin);
+    }
+  }
+
+  return origins;
 }
 
 const LOCALHOST_ORIGIN_REGEX = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;

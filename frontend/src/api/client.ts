@@ -13,7 +13,16 @@ import type {
   VisualInspectionDetail,
 } from '../types';
 
-const envUrl = (import.meta as any).env?.VITE_API_BASE_URL || (import.meta as any).env?.VITE_API_URL;
+// Determine API base path:
+// In production builds (import.meta.env.PROD), always use the same-origin '/api' path
+// so all requests route through the Vercel edge rewrite proxy (protecting session cookies
+// and avoiding cross-origin issues).
+// In development, allow VITE_API_BASE_URL or VITE_API_URL override if explicitly set,
+// otherwise default to same-origin '/api' (handled by the Vite dev server proxy).
+const isProduction = Boolean((import.meta as any).env?.PROD);
+const envUrl = !isProduction
+  ? ((import.meta as any).env?.VITE_API_BASE_URL || (import.meta as any).env?.VITE_API_URL)
+  : undefined;
 const API_BASE = envUrl
   ? (envUrl.endsWith('/api') ? envUrl : `${envUrl.replace(/\/+$/, '')}/api`)
   : '/api';

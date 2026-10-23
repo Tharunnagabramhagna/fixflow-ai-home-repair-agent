@@ -127,20 +127,30 @@ Content-Type: application/json; charset=utf-8
 Because the frontend is deployed on Vercel, the recommended architecture routes all `/api/*` requests through a Vercel edge rewrite. This ensures the frontend and backend appear same-origin to the browser.
 
 ### 5.1 Vercel Rewrite Configuration
-Add (or update) `vercel.json` in the frontend repository or Vercel project settings:
+`vercel.json` is configured in the repository (both at the root and in `frontend/vercel.json` to support whichever Vercel Root Directory setting is used):
 
 ```json
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
+      "source": "/api",
+      "destination": "https://fixflow-ai-home-repair-agent.onrender.com/api"
+    },
+    {
       "source": "/api/:path*",
-      "destination": "https://<YOUR-RAILWAY-DOMAIN>.up.railway.app/api/:path*"
+      "destination": "https://fixflow-ai-home-repair-agent.onrender.com/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
 ```
 
-*Replace `<YOUR-RAILWAY-DOMAIN>.up.railway.app` with your actual Railway public domain generated under Service Settings > Networking.*
+*For Render backend: `destination` points to `https://fixflow-ai-home-repair-agent.onrender.com/api/:path*`.*
+*For Railway backend: `destination` points to `https://<YOUR-RAILWAY-DOMAIN>.up.railway.app/api/:path*`.*
 
 ### 5.2 Why this preserves full security:
 1. **Cookie Preservation:** When a user registers or logs in, the backend issues a `fixflow_session` cookie (`HttpOnly`, `SameSite=Lax`, `Secure`). Because the browser initiated the request to `https://<YOUR-APP>.vercel.app/api/auth/login`, the cookie is stored directly under the Vercel domain.

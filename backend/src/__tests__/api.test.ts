@@ -202,4 +202,37 @@ describe('FixFlow API Integration Tests', () => {
       expect(Array.isArray(res.body.data.upcoming_appointments)).toBe(true);
     });
   });
+
+  describe('CORS Allowlist Security', () => {
+    it('allows requests with no Origin header (health check, curl, proxy)', async () => {
+      const res = await request(app).get('/api/health');
+      expect(res.status).toBe(200);
+      expect(res.header['access-control-allow-origin']).toBeUndefined();
+    });
+
+    it('allows exact production Vercel origin with credentials header', async () => {
+      const res = await request(app)
+        .get('/api/health')
+        .set('Origin', 'https://fixflow-ai-home-repair-agent.vercel.app');
+      expect(res.status).toBe(200);
+      expect(res.header['access-control-allow-origin']).toBe(
+        'https://fixflow-ai-home-repair-agent.vercel.app'
+      );
+      expect(res.header['access-control-allow-credentials']).toBe('true');
+    });
+
+    it('rejects unauthorized origins in production mode with HTTP 403', async () => {
+      const originalEnv = process.env.NODE_ENV;
+      try {
+        process.env.NODE_ENV = 'production';
+        const res = await request(app)
+          .get('/api/health')
+          .set('Origin', 'https://unauthorized-attacker.example.com');
+        expect(res.status).toBe(403);
+        expect(res.body.error).toContain('CORS policy violation');
+      } finally {
+        process.env.NODE_ENV = originalEnv;
+      }
+    });
+  });
 });
