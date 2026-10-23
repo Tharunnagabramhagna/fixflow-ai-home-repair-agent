@@ -6,6 +6,7 @@ import {
   Plus,
   FileText,
   Truck,
+  Camera,
 } from 'lucide-react';
 import type { RepairCase, Appliance } from '../types';
 import { DispatchTracker } from '../components/DispatchTracker';
@@ -17,6 +18,7 @@ interface RepairCasesViewProps {
   onOpenReportModal: () => void;
   onUpdateStatus: (repairCase: RepairCase) => void;
   onViewPassport: (appliance: Appliance) => void;
+  onOpenInspection?: (applianceId?: string, caseId?: string) => void;
 }
 
 const STATUS_FILTERS = [
@@ -37,6 +39,7 @@ export const RepairCasesView: React.FC<RepairCasesViewProps> = ({
   onOpenReportModal,
   onUpdateStatus,
   onViewPassport,
+  onOpenInspection,
 }) => {
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [expandedDispatchCaseId, setExpandedDispatchCaseId] = useState<string | null>(null);
@@ -243,6 +246,17 @@ export const RepairCasesView: React.FC<RepairCasesViewProps> = ({
                       >
                         <FileText className="w-3.5 h-3.5 text-[#8A9A92]" />
                         <span>Repair Passport</span>
+                      </button>
+                    )}
+
+                    {onOpenInspection && (
+                      <button
+                        onClick={() => onOpenInspection(c.appliance_id, c.id)}
+                        className="px-3 py-1.5 rounded-xl border border-[#E6E4DA] text-[#24342F] hover:bg-[#F6F4EE] font-medium flex items-center space-x-1 transition-colors"
+                        title="Upload photograph for AI visual diagnostic analysis"
+                      >
+                        <Camera className="w-3.5 h-3.5 text-[#183B32]" />
+                        <span>Visual Scan</span>
                       </button>
                     )}
 

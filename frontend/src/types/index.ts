@@ -216,3 +216,61 @@ export interface DispatchDetail extends ContractorDispatch {
   is_simulated: boolean;
 }
 
+export interface MultimodalAnalysisResult {
+  applianceType: string | null;
+  brand: string | null;
+  modelNumber: string | null;
+  modelConfidence: 'high' | 'medium' | 'low' | 'unverified';
+  visibleErrorCodes: string[];
+  observations: string[];
+  possibleCauses: string[];
+  recommendedNextSteps: string[];
+  safetyWarnings: string[];
+  confidence: 'high' | 'medium' | 'low';
+  requiresProfessionalInspection: boolean;
+  evidenceNotes: {
+    visualFindings: string[];
+    inferredHypotheses: string[];
+    unreadableDetails: string[];
+  };
+  disclaimer: string;
+}
+
+export interface VisualInspectionDetail {
+  id: string;
+  user_id: string;
+  appliance_id: string | null;
+  case_id: string | null;
+  filename: string;
+  original_filename: string;
+  mime_type: 'image/jpeg' | 'image/png' | 'image/webp';
+  file_size: number;
+  width: number | null;
+  height: number | null;
+  storage_path: string;
+  user_description: string | null;
+  status: 'completed' | 'failed' | 'processing';
+  error_message: string | null;
+  has_hazard: number;
+  applied_to_record: number;
+  created_at: string;
+  updated_at: string;
+  analysis: MultimodalAnalysisResult;
+  appliance_name?: string;
+}
+
+export interface AnalyzeInspectionInput {
+  imageBase64: string;
+  filename?: string;
+  mimeType?: string;
+  description?: string;
+  applianceId?: string;
+  caseId?: string;
+}
+
+export interface ApplyInspectionInput {
+  confirmationToken?: string;
+  brand?: string;
+  modelNumber?: string;
+}
+

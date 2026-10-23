@@ -3,6 +3,7 @@ import * as applianceService from './applianceService';
 import * as repairService from './repairService';
 import { confirmationManager } from './confirmationManager';
 import { dispatchService } from './dispatchService';
+import { inspectionService } from './inspectionService';
 
 export interface UserContext {
   id: string | null;
@@ -51,6 +52,10 @@ export const toolArgumentSchemas: Record<string, z.ZodSchema<any>> = {
   }),
   check_dispatch_status: z.object({
     case_id: z.string().min(1, 'case_id is required'),
+  }),
+  get_visual_inspections: z.object({
+    appliance_id: z.string().optional(),
+    case_id: z.string().optional(),
   }),
 };
 
@@ -217,6 +222,25 @@ export const MCP_TOOLS: ToolDefinition[] = [
         },
       },
       required: ['case_id'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'get_visual_inspections',
+    description:
+      'Retrieve past AI visual diagnostic inspections and photographs for an appliance or repair case. Returns observed error codes, physical damage, model labels, and safety warnings.',
+    parameters: {
+      type: 'object',
+      properties: {
+        appliance_id: {
+          type: 'string',
+          description: 'Optional ID of the appliance to filter inspections for',
+        },
+        case_id: {
+          type: 'string',
+          description: 'Optional ID of the repair case to filter inspections for',
+        },
+      },
       additionalProperties: false,
     },
   },
@@ -654,6 +678,31 @@ export async function executeMcpTool(
           tool: name,
           status: 'success',
           data: dispatch,
+        };
+      }
+
+      case 'get_visual_inspections': {
+        const inspections = inspectionService.listInspections({
+          userId: user.id,
+          applianceId: args.appliance_id,
+          caseId: args.case_id,
+        });
+
+        return {
+          tool: name,
+          status: 'success',
+          data: {
+            count: inspections.length,
+            inspections: inspections.map((i) => ({
+              id: i.id,
+              appliance_id: i.appliance_id,
+              case_id: i.case_id,
+              filename: i.original_filename,
+              created_at: i.created_at,
+              has_hazard: Boolean(i.has_hazard),
+              analysis: i.analysis,
+            })),
+          },
         };
       }
 

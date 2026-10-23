@@ -15,6 +15,7 @@ import {
   LogIn,
   ArrowLeft,
   Sparkles,
+  Camera,
 } from 'lucide-react';
 import { FixFlowLogo } from './brand/FixFlowLogo';
 import type { AuthUser } from '../types';
@@ -111,6 +112,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'AI Assistant',
       icon: Sparkles,
       badgeTitle: 'Conversational repair triage & MCP diagnostics',
+    },
+    {
+      id: 'inspections',
+      label: 'Visual Diagnostics',
+      icon: Camera,
+      badgeTitle: 'Multimodal AI photo diagnostics & rating plate scanner',
     },
   ];
 

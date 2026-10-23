@@ -15,6 +15,7 @@ import { StatusUpdateModal } from './components/StatusUpdateModal';
 import { SignInModal } from './components/landing/SignInModal';
 import { AssistantPanel } from './components/AssistantPanel';
 import { AlexaSimulatorModal } from './components/AlexaSimulatorModal';
+import { VisualInspectionModal } from './components/VisualInspectionModal';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useWindowWidth } from './hooks/useWindowWidth';
 import { FixFlowLogo } from './components/brand/FixFlowLogo';
@@ -31,6 +32,7 @@ import {
   LogIn,
   X,
   Mic,
+  Camera,
 } from 'lucide-react';
 
 function FixFlowMain() {
@@ -77,6 +79,15 @@ function FixFlowMain() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalInitialMode, setAuthModalInitialMode] = useState<'signin' | 'register'>('signin');
   const [isAlexaModalOpen, setIsAlexaModalOpen] = useState(false);
+  const [isInspectionModalOpen, setIsInspectionModalOpen] = useState(false);
+  const [inspectionTargetAppliance, setInspectionTargetAppliance] = useState<string | undefined>();
+  const [inspectionTargetCase, setInspectionTargetCase] = useState<string | undefined>();
+
+  const handleOpenInspection = (applianceId?: string, caseId?: string) => {
+    setInspectionTargetAppliance(applianceId);
+    setInspectionTargetCase(caseId);
+    setIsInspectionModalOpen(true);
+  };
 
   // Guest action prompt modal (when a guest clicks an account-only action)
   const [guestPrompt, setGuestPrompt] = useState<{
@@ -476,6 +487,7 @@ function FixFlowMain() {
                       onOpenReportModal={() => handleOpenReportModal()}
                       onUpdateStatus={(c) => handleOpenStatusModal(c)}
                       onViewPassport={(a) => setPassportAppliance(a)}
+                      onOpenInspection={handleOpenInspection}
                     />
                   )}
 
@@ -497,13 +509,22 @@ function FixFlowMain() {
                             Natural language appliance diagnostics, warranty verification, and repair proposals.
                           </p>
                         </div>
-                        <button
-                          onClick={() => setIsAlexaModalOpen(true)}
-                          className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold rounded-xl shadow-md shadow-blue-500/20 flex items-center space-x-2 transition-all self-start sm:self-auto"
-                        >
-                          <Mic className="w-4 h-4 animate-pulse text-blue-200" />
-                          <span>Alexa Voice Simulator</span>
-                        </button>
+                        <div className="flex items-center gap-2.5 self-start sm:self-auto">
+                          <button
+                            onClick={() => handleOpenInspection()}
+                            className="px-4 py-2 bg-gradient-to-r from-[#183B32] to-[#245448] hover:from-[#122E27] hover:to-[#1c443a] text-white text-xs font-semibold rounded-xl shadow-md flex items-center space-x-2 transition-all cursor-pointer"
+                          >
+                            <Camera className="w-4 h-4 text-[#86EFAC]" />
+                            <span>Visual AI Scan</span>
+                          </button>
+                          <button
+                            onClick={() => setIsAlexaModalOpen(true)}
+                            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold rounded-xl shadow-md shadow-blue-500/20 flex items-center space-x-2 transition-all"
+                          >
+                            <Mic className="w-4 h-4 animate-pulse text-blue-200" />
+                            <span>Alexa Voice Simulator</span>
+                          </button>
+                        </div>
                       </div>
                       <div className="h-[680px] w-full">
                         <AssistantPanel
@@ -513,6 +534,51 @@ function FixFlowMain() {
                           onViewPassport={(a) => setPassportAppliance(a)}
                           onRefreshData={loadAllData}
                         />
+                      </div>
+                    </div>
+                  )}
+
+                  {currentTab === 'inspections' && (
+                    <div className="space-y-6">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                          <h1 className="text-2xl sm:text-3xl font-bold text-[#183B32] tracking-tight">
+                            Visual AI Diagnostics
+                          </h1>
+                          <p className="text-sm text-[#687871] mt-1">
+                            Analyze rating labels, error code displays, and visible appliance damage with multimodal AI.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleOpenInspection()}
+                          className="px-4 py-2.5 bg-[#183B32] hover:bg-[#122E27] text-white text-xs font-semibold rounded-xl shadow-md flex items-center gap-2 cursor-pointer transition-all self-start sm:self-auto"
+                        >
+                          <Camera className="w-4 h-4 text-[#86EFAC]" />
+                          <span>New Visual Inspection</span>
+                        </button>
+                      </div>
+
+                      <div className="bg-white border border-[#E6E4DA] rounded-2xl p-6 sm:p-8 text-center space-y-4">
+                        <div className="w-16 h-16 rounded-2xl bg-[#183B32]/10 text-[#183B32] flex items-center justify-center mx-auto">
+                          <Camera className="w-8 h-8" />
+                        </div>
+                        <div className="max-w-md mx-auto">
+                          <h3 className="font-semibold text-lg text-[#183B32]">
+                            Inspect Your Appliances with Visual AI
+                          </h3>
+                          <p className="text-xs text-[#687871] mt-1.5 leading-relaxed">
+                            Take or upload a photo of your appliance's rating sticker, digital error display, or visible leak. FixFlow's multimodal vision system will extract candidate model numbers, diagnostic error codes, and safety alerts.
+                          </p>
+                        </div>
+                        <div className="pt-2">
+                          <button
+                            onClick={() => handleOpenInspection()}
+                            className="px-6 py-3 bg-[#183B32] hover:bg-[#122E27] text-white font-semibold text-xs rounded-xl shadow-md inline-flex items-center gap-2 transition-all"
+                          >
+                            <Camera className="w-4 h-4 text-[#86EFAC]" />
+                            <span>Launch Multimodal Scanner</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -633,6 +699,23 @@ function FixFlowMain() {
       <AlexaSimulatorModal
         isOpen={isAlexaModalOpen}
         onClose={() => setIsAlexaModalOpen(false)}
+      />
+
+      {/* Multimodal AI Visual Inspection Modal (Phase 5) */}
+      <VisualInspectionModal
+        isOpen={isInspectionModalOpen}
+        onClose={() => setIsInspectionModalOpen(false)}
+        appliances={appliances}
+        initialApplianceId={inspectionTargetAppliance}
+        initialCaseId={inspectionTargetCase}
+        onDiscussWithAssistant={(_summary) => {
+          setCurrentTab('assistant');
+          showToast('Inspection findings loaded for discussion with Assistant.');
+        }}
+        onApplianceUpdated={() => {
+          loadAllData();
+          showToast('Appliance passport updated with visual inspection details.');
+        }}
       />
     </div>
   );

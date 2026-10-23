@@ -44,6 +44,21 @@ export const cancelDispatchSchema = z.object({
   reason: z.string().max(500).optional(),
 });
 
+export const analyzeInspectionSchema = z.object({
+  imageBase64: z.string().min(10, 'Image data is required in base64 format'),
+  filename: z.string().max(150).optional(),
+  mimeType: z.string().max(50).optional(),
+  description: z.string().max(2000).optional(),
+  applianceId: z.string().max(100).optional(),
+  caseId: z.string().max(100).optional(),
+});
+
+export const applyInspectionSchema = z.object({
+  confirmationToken: z.string().optional(),
+  brand: z.string().max(100).optional(),
+  modelNumber: z.string().max(100).optional(),
+});
+
 export type CreateApplianceInput = z.infer<typeof createApplianceSchema>;
 export type CreateRepairCaseInput = z.infer<typeof createRepairCaseSchema>;
 export type UpdateRepairStatusInput = z.infer<typeof updateRepairStatusSchema>;
@@ -51,3 +66,6 @@ export type AddRepairNoteInput = z.infer<typeof addRepairNoteSchema>;
 export type InitiateDispatchInput = z.infer<typeof initiateDispatchSchema>;
 export type AdvanceDispatchInput = z.infer<typeof advanceDispatchSchema>;
 export type CancelDispatchInput = z.infer<typeof cancelDispatchSchema>;
+export type AnalyzeInspectionInput = z.infer<typeof analyzeInspectionSchema>;
+export type ApplyInspectionInput = z.infer<typeof applyInspectionSchema>;
+

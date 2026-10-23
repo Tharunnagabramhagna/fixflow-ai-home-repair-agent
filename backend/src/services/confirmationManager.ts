@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 
-export type ConfirmationAction = 'create_repair_case' | 'add_repair_note' | 'dispatch_contractor';
+export type ConfirmationAction = 'create_repair_case' | 'add_repair_note' | 'dispatch_contractor' | 'apply_inspection_data';
 
 export interface PendingConfirmation {
   token: string;

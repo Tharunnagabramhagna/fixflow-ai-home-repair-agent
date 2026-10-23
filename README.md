@@ -115,11 +115,15 @@ npm test
 # or: npm run test:backend
 ```
 
-The test suite runs **51 automated tests across 4 test suites**:
-1. **`auth.test.ts` (20 tests)**: User registration, bcrypt password hashing, login, session tokens, sign-out invalidation, guest read access, and cross-user data isolation.
-2. **`api.test.ts` (17 tests)**: Health probe, appliance CRUD, validation failures (HTTP 400), non-existent entity 404 guards, repair tickets, status updates, and dashboard summary aggregations.
-3. **`seed.test.ts` (6 tests)**: Real production seed idempotency, clean initial seed, duplicate prevention, partial warranty doc restoration, transactional rollback on error, and SQL schema file compatibility.
-4. **`workflow.test.ts` (8 tests)**: Atomicity of case and event creation, valid status lifecycle transitions, invalid transition rejection, terminal closed state lock, and deterministic event ordering.
+The backend test suite runs **98 automated tests across 8 test suites** (plus **22 automated tests** in `mcp-server`, for a total of **120 tests**):
+1. **`multimodal.test.ts` (15 tests)**: Magic-byte inspection, dimensions, size limits, EXIF sanitization, directory traversal defense, rate-limiting, safety interceptor, multimodal analysis, passport confirmation, and ownership enforcement.
+2. **`alexa.test.ts` (12 tests)**: ASK signature verification, timestamp freshness validation, supported intents, error handling, and secret redaction.
+3. **`dispatch.test.ts` (7 tests)**: Dispatch lifecycle, state transitions, ownership access checks, and SSE live stream updates.
+4. **`assistant.test.ts` (11 tests)**: Conversational diagnostics, tool calling, two-step confirmation manager, and safety hazard interception.
+5. **`auth.test.ts` (20 tests)**: User registration, bcrypt password hashing, login, session tokens, sign-out invalidation, guest read access, and cross-user data isolation.
+6. **`api.test.ts` (17 tests)**: Health probe, appliance CRUD, validation failures (HTTP 400), non-existent entity 404 guards, repair tickets, status updates, and dashboard summary aggregations.
+7. **`seed.test.ts` (6 tests)**: Real production seed idempotency, clean initial seed, duplicate prevention, partial warranty doc restoration, transactional rollback on error, and SQL schema file compatibility.
+8. **`workflow.test.ts` (10 tests)**: Atomicity of case and event creation, valid status lifecycle transitions, invalid transition rejection, terminal closed state lock, and deterministic event ordering.
 
 ### Complete Database Isolation in Tests
 All mutation-based tests run against isolated in-memory or dedicated temporary databases (`test-fixflow.db`). The development database (`database/data/fixflow.db`) is never touched or modified during test execution.
@@ -176,6 +180,12 @@ The backup engine:
 | `GET` | `/api/repairs/:id/dispatch/stream` | Server-Sent Events (SSE) live dispatch update stream |
 | `GET` | `/api/alexa` | Alexa Skills Kit endpoint discovery and supported intents |
 | `POST` | `/api/alexa` | Official Alexa Skills Kit webhook with request signature verification |
+| `POST` | `/api/inspections/analyze` | Upload image for multimodal AI diagnosis, rating plate extraction & hazard detection |
+| `GET` | `/api/inspections` | List visual inspections for authenticated user |
+| `GET` | `/api/inspections/:id` | Get inspection analysis details |
+| `GET` | `/api/inspections/:id/image` | Securely stream inspection photograph |
+| `DELETE` | `/api/inspections/:id` | Delete inspection record and image file from storage |
+| `POST` | `/api/inspections/:id/apply` | Apply confirmed extracted brand/model to Digital Repair Passport |
 
 ---
 
@@ -191,6 +201,13 @@ The backup engine:
    - ASK request signature and timestamp freshness verification.
    - Live contractor dispatch simulation (`pending` → `dispatched` → `en_route` → `arrived` → `completed`) with real-time Server-Sent Events (SSE) push streaming.
    - In-browser Alexa Voice Assistant Simulator testbed.
+4. **Multimodal AI Diagnostics & Visual Appliance Inspection (Phase 5)**:
+   - Homeowner photo upload (JPEG, PNG, WebP) with strict binary magic-byte inspection, dimension limits (max 8192x8192), 10MB ceiling, and automated EXIF/GPS metadata stripping.
+   - Structured visual diagnostics clearly separating physical observations from inferred hypotheses, reading error codes & rating plates with calibrated confidence.
+   - Built-in Safety Interceptor for gas leaks, electrical arcing/fire, and water near electrical components.
+   - Two-step confirmation flow before updating Digital Repair Passports with extracted specifications.
+   - AI Assistant MCP tool `get_visual_inspections` allowing the conversational agent to reference visual evidence.
+   - Interactive UI modal with drag-and-drop, sample testbed presets, side-by-side verification, and direct repair case linking.
 
 ---
 
@@ -200,6 +217,7 @@ The backup engine:
 - **Phase 2 (Complete & Verified)**: Official Model Context Protocol (MCP) server running Streamable HTTP with 7 repair tools and guest vs authenticated privacy scoping.
 - **Phase 3 (Complete & Verified)**: Conversational AI Repair Assistant with structured MCP tool calling, Gemini/OpenAI/Claude multi-provider support, and critical safety hazard interceptors.
 - **Phase 4 (Complete & Verified)**: Alexa Voice Integration layer (`/api/alexa`) with ASK request verification, verbal two-step confirmation, stateful contractor dispatch simulation, and real-time SSE streaming.
+- **Phase 5 (Complete & Verified)**: Multimodal AI repair diagnostics, visual appliance inspection, rating plate OCR extraction, EXIF metadata sanitization, and passport record updates.
 
 ---
 

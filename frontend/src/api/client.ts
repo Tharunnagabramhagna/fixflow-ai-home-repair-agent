@@ -8,6 +8,9 @@ import type {
   AuthUser,
   LoginCredentials,
   RegisterCredentials,
+  AnalyzeInspectionInput,
+  ApplyInspectionInput,
+  VisualInspectionDetail,
 } from '../types';
 
 const envUrl = (import.meta as any).env?.VITE_API_BASE_URL || (import.meta as any).env?.VITE_API_URL;
@@ -176,4 +179,36 @@ export const api = {
 
   getAlexaDiscovery: () =>
     fetchJson<any>(`${API_BASE}/alexa`),
+
+  // Multimodal AI Diagnostics & Visual Inspection (Phase 5)
+  analyzeInspection: (input: AnalyzeInspectionInput) =>
+    fetchJson<{ data: VisualInspectionDetail }>(`${API_BASE}/inspections/analyze`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  getInspections: (filter?: { appliance_id?: string; case_id?: string }) => {
+    const params = new URLSearchParams();
+    if (filter?.appliance_id) params.append('appliance_id', filter.appliance_id);
+    if (filter?.case_id) params.append('case_id', filter.case_id);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return fetchJson<{ data: VisualInspectionDetail[] }>(`${API_BASE}/inspections${qs}`);
+  },
+
+  getInspection: (id: string) =>
+    fetchJson<{ data: VisualInspectionDetail }>(`${API_BASE}/inspections/${id}`),
+
+  getInspectionImageUrl: (id: string) =>
+    `${API_BASE}/inspections/${id}/image`,
+
+  deleteInspection: (id: string) =>
+    fetchJson<{ success: boolean; message: string }>(`${API_BASE}/inspections/${id}`, {
+      method: 'DELETE',
+    }),
+
+  applyInspection: (id: string, input: ApplyInspectionInput) =>
+    fetchJson<any>(`${API_BASE}/inspections/${id}/apply`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
 };
