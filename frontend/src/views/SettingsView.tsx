@@ -3,8 +3,6 @@ import {
   User,
   Bell,
   CheckCircle2,
-  Activity,
-  ArrowRight,
   Info,
 } from 'lucide-react';
 
@@ -15,7 +13,7 @@ interface SettingsViewProps {
   onOpenAuthModal?: () => void;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, onOpenAuthModal }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab: _onNavigateTab, onOpenAuthModal }) => {
   const { user, isGuest } = useAuth();
   const [profile, setProfile] = useState(() => ({
     name: user?.name || (isGuest ? 'Guest Explorer' : 'Homeowner'),
@@ -75,17 +73,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, onOpe
             Manage your homeowner identity, notification channels, and household defaults
           </p>
         </div>
-
-        {onNavigateTab && (
-          <button
-            onClick={() => onNavigateTab('health')}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#F6F4EE] border border-[#E6E4DA] text-xs font-semibold text-[#183B32] hover:bg-[#DDE7DD] transition-all"
-          >
-            <Activity className="w-4 h-4 text-[#183B32]" />
-            <span>Developer Diagnostics</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-        )}
       </div>
 
       {/* Guest Mode Banner in Settings */}

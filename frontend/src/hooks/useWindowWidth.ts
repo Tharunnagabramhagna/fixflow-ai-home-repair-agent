@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 
 export interface WindowWidthState {
   width: number;
+  isDesktop: boolean;
   isWideDesktop: boolean;
   isLaptop: boolean;
   isTablet: boolean;
@@ -33,14 +34,16 @@ export function useWindowWidth(): WindowWidthState {
     };
   }, []);
 
+  const isDesktop = width >= 1024; // All desktop and laptop resolutions (1024, 1280, 1366, 1440, 1536+)
   const isWideDesktop = width >= 1440;
   const isLaptop = width >= 1024 && width < 1440;
   const isTablet = width >= 768 && width < 1024;
   const isMobile = width < 768;
-  const isDrawerMode = width < 1440;
+  const isDrawerMode = width < 1024; // Mobile and tablet only
 
   return {
     width,
+    isDesktop,
     isWideDesktop,
     isLaptop,
     isTablet,

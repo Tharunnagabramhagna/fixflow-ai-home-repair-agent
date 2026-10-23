@@ -5,8 +5,10 @@ import type { Appliance, RepairCase, AuthUser } from '../types';
 interface HeaderProps {
   currentTab: string;
   onOpenDrawer: () => void;
+  isDesktop?: boolean;
   isWideDesktop?: boolean;
   desktopCollapsed?: boolean;
+  onToggleDesktopCollapse?: () => void;
   onOpenReportModal?: () => void;
   onOpenRegisterModal?: () => void;
   onSearch?: (query: string) => void;
@@ -23,8 +25,10 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   currentTab: _currentTab,
   onOpenDrawer,
+  isDesktop,
   isWideDesktop = false,
   desktopCollapsed = false,
+  onToggleDesktopCollapse,
   onSearch,
   appliances = [],
   repairCases = [],
@@ -35,6 +39,7 @@ export const Header: React.FC<HeaderProps> = ({
   onSignOut,
   onOpenAuthModal,
 }) => {
+  const isDesktopMode = isDesktop !== undefined ? isDesktop : isWideDesktop;
   const [searchQuery, setSearchQuery] = useState('');
   const [showNotificationPopup, setShowNotificationPopup] = useState(false);
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
@@ -95,23 +100,38 @@ export const Header: React.FC<HeaderProps> = ({
     : [];
 
   const hasResults = matchedAppliances.length > 0 || matchedCases.length > 0;
-  const showHamburger = !isWideDesktop || desktopCollapsed;
 
   return (
     <header className="bg-white/90 backdrop-blur-md border-b border-[#E6E4DA] sticky top-0 z-20 px-4 sm:px-6 py-3">
       <div className="flex items-center justify-between gap-4 max-w-7xl mx-auto w-full">
-        {/* Left: Mobile & Laptop Hamburger Menu Button */}
+        {/* Left: Visible Sidebar Toggle Button (collapses in-flow rail on desktop, opens drawer on mobile) */}
         <div className="flex items-center gap-2">
-          {showHamburger && (
-            <button
-              onClick={onOpenDrawer}
-              className="p-2 rounded-xl text-[#687871] hover:text-[#183B32] hover:bg-[#F6F4EE] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
-              aria-label="Open navigation menu"
-              title="Open Navigation"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-          )}
+          <button
+            onClick={() => {
+              if (isDesktopMode && onToggleDesktopCollapse) {
+                onToggleDesktopCollapse();
+              } else {
+                onOpenDrawer();
+              }
+            }}
+            className="p-2 rounded-xl text-[#687871] hover:text-[#183B32] hover:bg-[#F6F4EE] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
+            aria-label={
+              isDesktopMode
+                ? desktopCollapsed
+                  ? 'Expand sidebar navigation'
+                  : 'Collapse sidebar navigation'
+                : 'Open navigation drawer'
+            }
+            title={
+              isDesktopMode
+                ? desktopCollapsed
+                  ? 'Expand sidebar'
+                  : 'Collapse sidebar'
+                : 'Open Navigation'
+            }
+          >
+            <Menu className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Center: Global Search Bar with Live Result Dropdown */}

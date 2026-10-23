@@ -16,7 +16,7 @@ FixFlow/
 │   ├── src/
 │   │   ├── api/                  # Typed REST API client
 │   │   ├── components/           # UI components (SummaryCards, ApplianceCard, Header, Sidebar)
-│   │   ├── views/                # Overview, My Appliances, Repair Cases, Repair History, Settings, System Health
+│   │   ├── views/                # Overview, My Appliances, Repair Cases, Repair History, Settings
 │   │   └── types/                # Shared TypeScript data models
 │   └── vite.config.ts            # Vite build configuration with /api proxy
 ├── backend/                      # Node.js, Express, TypeScript, SQLite REST API
@@ -115,10 +115,11 @@ npm test
 # or: npm run test:backend
 ```
 
-The test suite runs **31 automated tests across 3 test suites**:
-1. **`api.test.ts` (17 tests)**: Health probe, appliance CRUD, validation failures (HTTP 400), non-existent entity 404 guards, repair tickets, status updates, and dashboard summary aggregations.
-2. **`seed.test.ts` (6 tests)**: Real production seed idempotency, clean initial seed, duplicate prevention, partial warranty doc restoration, transactional rollback on error, and SQL schema file compatibility.
-3. **`workflow.test.ts` (8 tests)**: Atomicity of case and event creation, valid status lifecycle transitions, invalid transition rejection, terminal closed state lock, and deterministic event ordering.
+The test suite runs **51 automated tests across 4 test suites**:
+1. **`auth.test.ts` (20 tests)**: User registration, bcrypt password hashing, login, session tokens, sign-out invalidation, guest read access, and cross-user data isolation.
+2. **`api.test.ts` (17 tests)**: Health probe, appliance CRUD, validation failures (HTTP 400), non-existent entity 404 guards, repair tickets, status updates, and dashboard summary aggregations.
+3. **`seed.test.ts` (6 tests)**: Real production seed idempotency, clean initial seed, duplicate prevention, partial warranty doc restoration, transactional rollback on error, and SQL schema file compatibility.
+4. **`workflow.test.ts` (8 tests)**: Atomicity of case and event creation, valid status lifecycle transitions, invalid transition rejection, terminal closed state lock, and deterministic event ordering.
 
 ### Complete Database Isolation in Tests
 All mutation-based tests run against isolated in-memory or dedicated temporary databases (`test-fixflow.db`). The development database (`database/data/fixflow.db`) is never touched or modified during test execution.
@@ -189,7 +190,7 @@ Each registered appliance has a persistent **Digital Repair Passport**:
   - Persistent SQLite storage (`database/data/fixflow.db`) with WAL mode, foreign keys, and cold backup verification.
   - Validated Express REST API with centralized error handling.
   - Automated test suite (31 tests) testing real production seed and repair services against isolated test databases.
-  - Refined React frontend with Digital Repair Passports, responsive summary cards, global search, mobile navigation drawer, and dedicated System Health diagnostics.
+  - Refined React frontend with Digital Repair Passports, responsive summary cards, global search, mobile navigation drawer, and developer REST health probes.
   - **Truthful Prototype Boundaries**:
     - The FixFlow Assistant in the UI is currently a **Local Rule-Based Triage Preview** matching homeowner symptoms to inventory items.
     - No live Amazon Bedrock foundation models or Alexa voice skills are connected in Phase 1.

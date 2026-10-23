@@ -8,12 +8,12 @@ import {
   HelpCircle,
   ChevronRight,
   X,
-  Activity,
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
   Compass,
   LogIn,
+  ArrowLeft,
 } from 'lucide-react';
 import { FixFlowLogo } from './brand/FixFlowLogo';
 import type { AuthUser } from '../types';
@@ -23,7 +23,8 @@ export interface SidebarProps {
   onSelectTab: (tab: string) => void;
   drawerOpen: boolean;
   onCloseDrawer: () => void;
-  isWideDesktop: boolean;
+  isDesktop?: boolean;
+  isWideDesktop?: boolean;
   desktopCollapsed: boolean;
   onToggleDesktopCollapse: () => void;
   applianceCount: number;
@@ -48,7 +49,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectTab,
   drawerOpen,
   onCloseDrawer,
-  isWideDesktop,
+  isDesktop,
+  isWideDesktop = false,
   desktopCollapsed,
   onToggleDesktopCollapse,
   applianceCount,
@@ -58,6 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSignOut,
   onOpenAuthModal,
 }) => {
+  const isDesktopMode = isDesktop !== undefined ? isDesktop : isWideDesktop;
   const [showHelpModal, setShowHelpModal] = useState(false);
 
   // Close drawer on Escape key press
@@ -106,7 +109,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const accountItems: NavItem[] = [
     { id: 'settings', label: 'Settings & Profile', icon: Settings },
-    { id: 'health', label: 'System Health', icon: Activity },
   ];
 
   const isGuest = !user;
@@ -288,10 +290,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onBackToLanding();
               }}
               className="w-full text-center text-xs font-semibold text-[#183B32] bg-[#EEF4EE] hover:bg-[#DDE7DD] border border-[#CBDBCB]/70 rounded-xl py-2 px-3 transition-colors flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
-              title="Return to FixFlow Public Website"
+              title="Back to Home Page"
             >
-              <span className="text-sm">←</span>
-              <span>Public Website</span>
+              <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
+              <span>Back to Home Page</span>
             </button>
           )}
         </div>
@@ -391,10 +393,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             onClick={onBackToLanding}
             className="p-2.5 rounded-xl text-[#183B32] bg-[#EEF4EE] hover:bg-[#DDE7DD] transition-colors"
-            title="Return to Public Website"
-            aria-label="Return to Public Website"
+            title="Back to Home Page"
+            aria-label="Back to Home Page"
           >
-            <span className="text-sm font-bold">←</span>
+            <ArrowLeft className="w-4 h-4" />
           </button>
         )}
 
@@ -425,10 +427,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* 1. WIDE DESKTOP IN-FLOW SIDEBAR */}
-      {isWideDesktop && (
+      {/* 1. DESKTOP / LAPTOP IN-FLOW SIDEBAR (Compact 256px expanded / 80px collapsed rail) */}
+      {isDesktopMode && (
         <aside
-          className={`shrink-0 h-screen h-[100dvh] sticky top-0 z-30 transition-all duration-200 ${
+          className={`shrink-0 h-screen h-[100dvh] sticky top-0 z-30 transition-all duration-200 border-r border-[#E6E4DA] bg-white ${
             desktopCollapsed ? 'w-20' : 'w-64'
           }`}
           aria-label="Primary Navigation"
@@ -437,10 +439,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </aside>
       )}
 
-      {/* 2. LAPTOP / TABLET / MOBILE SLIDE-IN DRAWER */}
-      {!isWideDesktop && drawerOpen && (
+      {/* 2. TABLET / MOBILE SLIDE-IN DRAWER (Capped at 280px width, never occupying entire screen) */}
+      {!isDesktopMode && drawerOpen && (
         <div
-          className="fixed inset-0 z-50 flex"
+          className="fixed inset-0 z-50 overflow-hidden"
           role="dialog"
           aria-modal="true"
           aria-label="Navigation drawer"
@@ -452,8 +454,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             aria-hidden="true"
           />
 
-          {/* Drawer Panel */}
-          <div className="relative flex-1 flex flex-col w-72 max-w-[85vw] h-full bg-white shadow-2xl z-10 animate-in slide-in-from-left duration-200">
+          {/* Drawer Panel: strictly capped width (280px), within viewport, scrollable navigation */}
+          <div className="relative w-72 max-w-[280px] h-full h-[100dvh] bg-white shadow-2xl z-10 animate-in slide-in-from-left duration-200 flex flex-col overflow-hidden">
             {renderExpandedContent(true)}
           </div>
         </div>

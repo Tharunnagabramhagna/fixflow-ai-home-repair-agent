@@ -40,7 +40,7 @@ function FixFlowMain() {
     continueAsGuest,
     isGuest,
   } = useAuth();
-  const { isWideDesktop } = useWindowWidth();
+  const { isDesktop, isWideDesktop } = useWindowWidth();
 
   // Navigation / View mode: 'landing' vs 'dashboard'
   const [viewMode, setViewMode] = useState<'landing' | 'dashboard'>(() => {
@@ -357,7 +357,7 @@ function FixFlowMain() {
                     onClick={navigateToLanding}
                     className="py-2.5 px-4 rounded-full border border-[#E6E4DA] text-xs font-semibold hover:bg-slate-50 transition-colors"
                   >
-                    Public Website
+                    Back to Home Page
                   </button>
                 </div>
               </div>
@@ -373,6 +373,7 @@ function FixFlowMain() {
                 onSelectTab={setCurrentTab}
                 drawerOpen={drawerOpen}
                 onCloseDrawer={() => setDrawerOpen(false)}
+                isDesktop={isDesktop}
                 isWideDesktop={isWideDesktop}
                 desktopCollapsed={desktopCollapsed}
                 onToggleDesktopCollapse={() => setDesktopCollapsed(!desktopCollapsed)}
@@ -389,8 +390,10 @@ function FixFlowMain() {
                 <Header
                   currentTab={currentTab}
                   onOpenDrawer={() => setDrawerOpen(true)}
+                  isDesktop={isDesktop}
                   isWideDesktop={isWideDesktop}
                   desktopCollapsed={desktopCollapsed}
+                  onToggleDesktopCollapse={() => setDesktopCollapsed(!desktopCollapsed)}
                   onOpenReportModal={() => handleOpenReportModal()}
                   onOpenRegisterModal={handleOpenRegisterModal}
                   appliances={appliances}

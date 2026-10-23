@@ -10,7 +10,10 @@ import type {
   RegisterCredentials,
 } from '../types';
 
-const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || '/api';
+const envUrl = (import.meta as any).env?.VITE_API_BASE_URL || (import.meta as any).env?.VITE_API_URL;
+const API_BASE = envUrl
+  ? (envUrl.endsWith('/api') ? envUrl : `${envUrl.replace(/\/+$/, '')}/api`)
+  : '/api';
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   let response: Response;
