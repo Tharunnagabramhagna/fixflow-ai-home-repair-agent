@@ -12,10 +12,48 @@ import { optionalAuth } from './middleware/auth';
 
 const app = express();
 
-app.use(cors({
-  origin: true,
-  credentials: true,
-}));
+// Trust reverse proxy (Railway, Vercel rewrite, Cloudflare)
+app.set('trust proxy', 1);
+
+// Helper to parse allowed origins from comma-separated CORS_ORIGIN
+function getAllowedOrigins(): string[] {
+  const envOrigins = process.env.CORS_ORIGIN || '';
+  return envOrigins
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+}
+
+const LOCALHOST_ORIGIN_REGEX = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // 1. Allow requests with no Origin header (curl, mobile apps, server-to-server,
+      // Alexa webhooks, internal proxy requests)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      const isProduction = process.env.NODE_ENV === 'production';
+      const allowedOrigins = getAllowedOrigins();
+
+      // 2. Exact match in configured CORS_ORIGIN allowlist
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // 3. In development/testing, permit localhost and 127.0.0.1 on any port
+      if (!isProduction && LOCALHOST_ORIGIN_REGEX.test(origin)) {
+        return callback(null, true);
+      }
+
+      // 4. Reject unapproved browser origins in production
+      return callback(new Error(`CORS policy violation: Origin '${origin}' is not allowed.`));
+    },
+    credentials: true,
+  })
+);
 
 // Save raw request body for cryptographic signature verification (e.g. Alexa Skills Kit)
 app.use(
@@ -61,6 +99,12 @@ app.use('/api/inspections', optionalAuth, inspectionsRouter);
 
 // Centralized error handling
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  if (err.message && err.message.startsWith('CORS policy violation')) {
+    res.status(403).json({
+      error: err.message,
+    });
+    return;
+  }
   console.error('[Error]', err);
   const status = err.status || 500;
   res.status(status).json({

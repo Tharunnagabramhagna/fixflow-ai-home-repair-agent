@@ -7,6 +7,8 @@
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
     "dev:mcp": "npm --prefix mcp-server run dev",
+    "start": "node backend/dist/index.js",
+    "start:backend": "node backend/dist/index.js",
     "build:backend": "npm --prefix backend run build",
     "build:frontend": "npm --prefix frontend run build",
     "build:mcp": "npm --prefix mcp-server run build",
