@@ -1,8 +1,10 @@
 import crypto from 'crypto';
 
+export type ConfirmationAction = 'create_repair_case' | 'add_repair_note' | 'dispatch_contractor';
+
 export interface PendingConfirmation {
   token: string;
-  action: 'create_repair_case' | 'add_repair_note';
+  action: ConfirmationAction;
   userId: string;
   applianceId?: string;
   caseId?: string;
@@ -13,7 +15,7 @@ export interface PendingConfirmation {
 }
 
 export interface CreateProposalOptions {
-  action: 'create_repair_case' | 'add_repair_note';
+  action: ConfirmationAction;
   userId: string;
   applianceId?: string;
   caseId?: string;
@@ -24,7 +26,7 @@ export interface CreateProposalOptions {
 
 export interface VerifyProposalOptions {
   token: string;
-  action: 'create_repair_case' | 'add_repair_note';
+  action: ConfirmationAction;
   userId: string;
   applianceId?: string;
   caseId?: string;

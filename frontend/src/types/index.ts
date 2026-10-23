@@ -176,3 +176,43 @@ export interface AssistantConfig {
   streamableHttpMcp: string;
   safetyFeatures: string[];
 }
+
+export type DispatchStatus = 'pending' | 'dispatched' | 'en_route' | 'arrived' | 'completed' | 'cancelled';
+
+export interface DispatchEvent {
+  id: string;
+  dispatch_id: string;
+  case_id: string;
+  status: DispatchStatus;
+  message: string;
+  actor: string;
+  created_at: string;
+}
+
+export interface ContractorDispatch {
+  id: string;
+  case_id: string;
+  user_id: string;
+  contractor_name: string;
+  company_name: string;
+  phone_number: string;
+  vehicle_info: string | null;
+  estimated_arrival_minutes: number | null;
+  status: DispatchStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  dispatched_at: string | null;
+  en_route_at: string | null;
+  arrived_at: string | null;
+  completed_at: string | null;
+  cancelled_at: string | null;
+}
+
+export interface DispatchDetail extends ContractorDispatch {
+  events: DispatchEvent[];
+  appliance_name?: string;
+  issue_description?: string;
+  is_simulated: boolean;
+}
+

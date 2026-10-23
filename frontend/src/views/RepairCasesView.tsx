@@ -5,8 +5,10 @@ import {
   CheckCircle2,
   Plus,
   FileText,
+  Truck,
 } from 'lucide-react';
 import type { RepairCase, Appliance } from '../types';
+import { DispatchTracker } from '../components/DispatchTracker';
 
 interface RepairCasesViewProps {
   repairCases: RepairCase[];
@@ -37,6 +39,7 @@ export const RepairCasesView: React.FC<RepairCasesViewProps> = ({
   onViewPassport,
 }) => {
   const [selectedStatus, setSelectedStatus] = useState('all');
+  const [expandedDispatchCaseId, setExpandedDispatchCaseId] = useState<string | null>(null);
 
   const countByFilter = (filterId: string) => {
     if (filterId === 'all') return repairCases.length;
@@ -221,6 +224,18 @@ export const RepairCasesView: React.FC<RepairCasesViewProps> = ({
                   <span className="text-[11px] font-mono">Created: {c.created_at}</span>
 
                   <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => setExpandedDispatchCaseId(expandedDispatchCaseId === c.id ? null : c.id)}
+                      className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+                        expandedDispatchCaseId === c.id
+                          ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-500/20'
+                          : 'border-blue-200 text-blue-700 hover:bg-blue-50 bg-blue-50/50'
+                      }`}
+                    >
+                      <Truck className="w-3.5 h-3.5" />
+                      <span>{expandedDispatchCaseId === c.id ? 'Hide Dispatch' : 'Track Dispatch'}</span>
+                    </button>
+
                     {appliance && (
                       <button
                         onClick={() => onViewPassport(appliance)}
@@ -241,6 +256,16 @@ export const RepairCasesView: React.FC<RepairCasesViewProps> = ({
                     )}
                   </div>
                 </div>
+
+                {/* Live Dispatch Tracker Accordion */}
+                {expandedDispatchCaseId === c.id && (
+                  <div className="pt-3 animate-fadeIn">
+                    <DispatchTracker
+                      caseId={c.id}
+                      applianceName={c.appliance_name}
+                    />
+                  </div>
+                )}
               </div>
             );
           })}

@@ -31,7 +31,23 @@ export const addRepairNoteSchema = z.object({
   note: z.string().trim().min(1, 'Note cannot be empty').max(2000, 'Note must not exceed 2000 characters'),
 });
 
+export const initiateDispatchSchema = z.object({
+  notes: z.string().max(500).optional(),
+});
+
+export const advanceDispatchSchema = z.object({
+  targetStatus: z.enum(['pending', 'dispatched', 'en_route', 'arrived', 'completed', 'cancelled']).optional(),
+  message: z.string().max(500).optional(),
+});
+
+export const cancelDispatchSchema = z.object({
+  reason: z.string().max(500).optional(),
+});
+
 export type CreateApplianceInput = z.infer<typeof createApplianceSchema>;
 export type CreateRepairCaseInput = z.infer<typeof createRepairCaseSchema>;
 export type UpdateRepairStatusInput = z.infer<typeof updateRepairStatusSchema>;
 export type AddRepairNoteInput = z.infer<typeof addRepairNoteSchema>;
+export type InitiateDispatchInput = z.infer<typeof initiateDispatchSchema>;
+export type AdvanceDispatchInput = z.infer<typeof advanceDispatchSchema>;
+export type CancelDispatchInput = z.infer<typeof cancelDispatchSchema>;

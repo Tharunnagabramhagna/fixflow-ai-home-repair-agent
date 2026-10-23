@@ -14,6 +14,7 @@ import { RegisterApplianceModal } from './components/RegisterApplianceModal';
 import { StatusUpdateModal } from './components/StatusUpdateModal';
 import { SignInModal } from './components/landing/SignInModal';
 import { AssistantPanel } from './components/AssistantPanel';
+import { AlexaSimulatorModal } from './components/AlexaSimulatorModal';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useWindowWidth } from './hooks/useWindowWidth';
 import { FixFlowLogo } from './components/brand/FixFlowLogo';
@@ -29,6 +30,7 @@ import {
   UserPlus,
   LogIn,
   X,
+  Mic,
 } from 'lucide-react';
 
 function FixFlowMain() {
@@ -74,6 +76,7 @@ function FixFlowMain() {
   // Auth Modal states
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalInitialMode, setAuthModalInitialMode] = useState<'signin' | 'register'>('signin');
+  const [isAlexaModalOpen, setIsAlexaModalOpen] = useState(false);
 
   // Guest action prompt modal (when a guest clicks an account-only action)
   const [guestPrompt, setGuestPrompt] = useState<{
@@ -485,7 +488,7 @@ function FixFlowMain() {
 
                   {currentTab === 'assistant' && (
                     <div className="space-y-4">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div>
                           <h1 className="text-2xl sm:text-3xl font-bold text-[#183B32] tracking-tight">
                             AI Repair Assistant
@@ -494,6 +497,13 @@ function FixFlowMain() {
                             Natural language appliance diagnostics, warranty verification, and repair proposals.
                           </p>
                         </div>
+                        <button
+                          onClick={() => setIsAlexaModalOpen(true)}
+                          className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold rounded-xl shadow-md shadow-blue-500/20 flex items-center space-x-2 transition-all self-start sm:self-auto"
+                        >
+                          <Mic className="w-4 h-4 animate-pulse text-blue-200" />
+                          <span>Alexa Voice Simulator</span>
+                        </button>
                       </div>
                       <div className="h-[680px] w-full">
                         <AssistantPanel
@@ -617,6 +627,12 @@ function FixFlowMain() {
         initialMode={authModalInitialMode}
         onClose={() => setAuthModalOpen(false)}
         onEnterDashboard={() => navigateToDashboard('overview')}
+      />
+
+      {/* Alexa Voice Assistant Simulator Modal (Phase 4) */}
+      <AlexaSimulatorModal
+        isOpen={isAlexaModalOpen}
+        onClose={() => setIsAlexaModalOpen(false)}
       />
     </div>
   );

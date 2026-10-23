@@ -168,35 +168,38 @@ The backup engine:
 | `GET` | `/api/repairs/:id` | Get repair case details and audit event timeline |
 | `PATCH` | `/api/repairs/:id/status` | Update case status (validates state transitions & logs event) |
 | `GET` | `/api/dashboard/summary` | Aggregated counts (active, open, scheduled, resolved), recent events, and appointments |
+| `POST` | `/api/assistant/chat` | AI repair assistant conversational diagnostics & tool calling |
+| `POST` | `/api/assistant/confirm` | Two-step homeowner confirmation execution |
+| `GET` | `/api/repairs/:id/dispatch` | Current contractor dispatch status and event timeline |
+| `POST` | `/api/repairs/:id/dispatch/advance` | Advance simulated contractor lifecycle |
+| `POST` | `/api/repairs/:id/dispatch/cancel` | Cancel contractor dispatch |
+| `GET` | `/api/repairs/:id/dispatch/stream` | Server-Sent Events (SSE) live dispatch update stream |
+| `GET` | `/api/alexa` | Alexa Skills Kit endpoint discovery and supported intents |
+| `POST` | `/api/alexa` | Official Alexa Skills Kit webhook with request signature verification |
 
 ---
 
-## Signature Feature: The Digital Repair Passport
+## Signature Features
 
-Each registered appliance has a persistent **Digital Repair Passport**:
-- **Device Specifications**: Brand, model, serial number, and household location.
-- **Warranty Status**: Real-time evaluation of active vs. expired manufacturer warranty.
-- **Warranty Documents**: Attached document metadata (e.g., certificates, user manuals).
-- **Chronological Repair History**: Deterministic audit trail of reported faults, technician diagnoses, scheduled service dates, and final resolutions.
-- Accessible directly from appliance cards or case views.
+1. **Digital Repair Passport**:
+   - Device specifications, real-time warranty evaluation, document storage, and chronological fault/resolution audit trails.
+2. **AI Repair Assistant & MCP Tools (Phase 3)**:
+   - Natural language appliance diagnosis, clarifying questions, safety hazard interceptor, and structured tool calling.
+   - Two-step confirmation tokens (`cfrm_*`) protecting all mutations with argument binding and single-use replay protection.
+3. **Alexa Voice Integration & Contractor Dispatch Simulation (Phase 4)**:
+   - Voice intents for appliance diagnosis, warranty lookups, case reviews, dispatch tracking, and verbal two-step confirmation.
+   - ASK request signature and timestamp freshness verification.
+   - Live contractor dispatch simulation (`pending` → `dispatched` → `en_route` → `arrived` → `completed`) with real-time Server-Sent Events (SSE) push streaming.
+   - In-browser Alexa Voice Assistant Simulator testbed.
 
 ---
 
-## Current Status & Boundaries (Phase 1)
+## Project Status
 
-- **Phase 0 (Complete)**: Repository setup, Git safety configuration, and `.gitignore` secrets protection.
-- **Phase 1 (Complete & Verified)**:
-  - Clean monorepo directory restructuring (`frontend/`, `backend/`, `database/`, `docs/`, `scripts/`).
-  - Persistent SQLite storage (`database/data/fixflow.db`) with WAL mode, foreign keys, and cold backup verification.
-  - Validated Express REST API with centralized error handling.
-  - Automated test suite (31 tests) testing real production seed and repair services against isolated test databases.
-  - Refined React frontend with Digital Repair Passports, responsive summary cards, global search, mobile navigation drawer, and developer REST health probes.
-  - **Truthful Prototype Boundaries**:
-    - The FixFlow Assistant in the UI is currently a **Local Rule-Based Triage Preview** matching homeowner symptoms to inventory items.
-    - No live Amazon Bedrock foundation models or Alexa voice skills are connected in Phase 1.
-    - External technician booking is simulated via internal database state transitions; no live external booking APIs are invoked.
-- **Phase 2 (Upcoming)**: Official Model Context Protocol (MCP) TypeScript SDK layer exposing appliance triage and ticket creation tools to AI agents.
-- **Phase 3 (Upcoming)**: Alexa+ voice interaction layer via Alexa Skills Kit and Amazon Bedrock for conversational diagnosis.
+- **Phase 1 (Complete & Verified)**: Core monorepo architecture, SQLite WAL database, REST API, Digital Repair Passports, and verified cold backups.
+- **Phase 2 (Complete & Verified)**: Official Model Context Protocol (MCP) server running Streamable HTTP with 7 repair tools and guest vs authenticated privacy scoping.
+- **Phase 3 (Complete & Verified)**: Conversational AI Repair Assistant with structured MCP tool calling, Gemini/OpenAI/Claude multi-provider support, and critical safety hazard interceptors.
+- **Phase 4 (Complete & Verified)**: Alexa Voice Integration layer (`/api/alexa`) with ASK request verification, verbal two-step confirmation, stateful contractor dispatch simulation, and real-time SSE streaming.
 
 ---
 

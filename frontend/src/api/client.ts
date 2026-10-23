@@ -144,4 +144,36 @@ export const api = {
 
   getAssistantConfig: () =>
     fetchJson<any>(`${API_BASE}/assistant/config`),
+
+  // Contractor Dispatch Simulation & SSE (Phase 4)
+  getDispatch: (caseId: string) =>
+    fetchJson<any>(`${API_BASE}/repairs/${caseId}/dispatch`),
+
+  initiateDispatch: (caseId: string, notes?: string) =>
+    fetchJson<any>(`${API_BASE}/repairs/${caseId}/dispatch/initiate`, {
+      method: 'POST',
+      body: JSON.stringify({ notes }),
+    }),
+
+  advanceDispatch: (caseId: string, targetStatus?: string, message?: string) =>
+    fetchJson<any>(`${API_BASE}/repairs/${caseId}/dispatch/advance`, {
+      method: 'POST',
+      body: JSON.stringify({ targetStatus, message }),
+    }),
+
+  cancelDispatch: (caseId: string, reason?: string) =>
+    fetchJson<any>(`${API_BASE}/repairs/${caseId}/dispatch/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+
+  // Alexa Voice Integration Simulation (Phase 4)
+  sendAlexaRequest: (envelope: any) =>
+    fetchJson<any>(`${API_BASE}/alexa`, {
+      method: 'POST',
+      body: JSON.stringify(envelope),
+    }),
+
+  getAlexaDiscovery: () =>
+    fetchJson<any>(`${API_BASE}/alexa`),
 };

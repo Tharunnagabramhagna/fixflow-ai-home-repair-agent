@@ -2,6 +2,7 @@ import { z } from 'zod';
 import * as applianceService from './applianceService';
 import * as repairService from './repairService';
 import { confirmationManager } from './confirmationManager';
+import { dispatchService } from './dispatchService';
 
 export interface UserContext {
   id: string | null;
@@ -47,6 +48,9 @@ export const toolArgumentSchemas: Record<string, z.ZodSchema<any>> = {
     case_id: z.string().min(1, 'case_id is required'),
     note: z.string().min(5, 'note must be at least 5 characters').max(1000),
     confirmation_token: z.string().optional(),
+  }),
+  check_dispatch_status: z.object({
+    case_id: z.string().min(1, 'case_id is required'),
   }),
 };
 
@@ -197,6 +201,22 @@ export const MCP_TOOLS: ToolDefinition[] = [
         },
       },
       required: ['case_id', 'note'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'check_dispatch_status',
+    description:
+      'Check the real-time simulated contractor dispatch status for an existing repair case. Returns assigned technician, contractor company, vehicle, estimated arrival time (ETA), and current dispatch status (pending, dispatched, en_route, arrived, completed, or cancelled).',
+    parameters: {
+      type: 'object',
+      properties: {
+        case_id: {
+          type: 'string',
+          description: 'The unique ID/UUID of the repair case',
+        },
+      },
+      required: ['case_id'],
       additionalProperties: false,
     },
   },
@@ -492,6 +512,11 @@ export async function executeMcpTool(
           user.id
         );
 
+        let dispatchInfo: any = null;
+        try {
+          dispatchInfo = dispatchService.initiateDispatch(createdCase.id, user.id);
+        } catch {}
+
         return {
           tool: name,
           status: 'success',
@@ -499,6 +524,7 @@ export async function executeMcpTool(
             status: 'success',
             message: 'Repair case successfully created.',
             repair_case: createdCase,
+            dispatch: dispatchInfo,
           },
         };
       }
@@ -600,6 +626,34 @@ export async function executeMcpTool(
             message: 'Repair note successfully appended to case audit trail.',
             event,
           },
+        };
+      }
+
+      case 'check_dispatch_status': {
+        const dispatch = dispatchService.getDispatchByCaseId(args.case_id, user.id);
+        if (!dispatch) {
+          // Check if repair case exists
+          const repairCase = repairService.getRepairCaseById(args.case_id, user.id);
+          if (!repairCase) {
+            return {
+              tool: name,
+              status: 'error',
+              statusCode: 404,
+              error: `Repair case '${args.case_id}' not found or access denied.`,
+            };
+          }
+          return {
+            tool: name,
+            status: 'error',
+            statusCode: 404,
+            error: `No simulated contractor dispatch found for repair case '${args.case_id}'.`,
+          };
+        }
+
+        return {
+          tool: name,
+          status: 'success',
+          data: dispatch,
         };
       }
 

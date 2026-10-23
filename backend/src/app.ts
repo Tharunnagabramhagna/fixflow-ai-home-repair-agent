@@ -5,6 +5,7 @@ import appliancesRouter from './routes/appliances';
 import repairsRouter from './routes/repairs';
 import dashboardRouter from './routes/dashboard';
 import assistantRouter from './routes/assistant';
+import alexaRouter from './routes/alexa';
 import { optionalAuth } from './middleware/auth';
 
 const app = express();
@@ -13,7 +14,16 @@ app.use(cors({
   origin: true,
   credentials: true,
 }));
-app.use(express.json());
+
+// Save raw request body for cryptographic signature verification (e.g. Alexa Skills Kit)
+app.use(
+  express.json({
+    limit: '2mb',
+    verify: (req: any, _res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 
 // Request logging in non-test environment
 if (process.env.NODE_ENV !== 'test') {
@@ -41,6 +51,7 @@ app.use('/api/appliances', optionalAuth, appliancesRouter);
 app.use('/api/repairs', optionalAuth, repairsRouter);
 app.use('/api/dashboard', optionalAuth, dashboardRouter);
 app.use('/api/assistant', optionalAuth, assistantRouter);
+app.use('/api/alexa', alexaRouter);
 
 
 // Centralized error handling
