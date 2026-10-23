@@ -4,6 +4,31 @@ import { extractSessionToken } from '../middleware/auth';
 
 const router = Router();
 
+function setSessionCookie(res: Response, req: Request, token: string): void {
+  const isSecure = req.secure || req.headers['x-forwarded-proto'] === 'https';
+  const maxAgeSeconds = Math.floor(SESSION_DURATION_MS / 1000);
+  const cookieFlags = [
+    `fixflow_session=${encodeURIComponent(token)}`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax',
+    `Max-Age=${maxAgeSeconds}`,
+  ];
+
+  if (isSecure) {
+    cookieFlags.push('Secure');
+  }
+
+  res.setHeader('Set-Cookie', cookieFlags.join('; '));
+}
+
+function clearSessionCookie(res: Response): void {
+  res.setHeader(
+    'Set-Cookie',
+    'fixflow_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
+  );
+}
+
 // GET /api/auth/session — Check current session validity
 router.get('/session', (req: Request, res: Response) => {
   const token = extractSessionToken(req);
@@ -23,44 +48,48 @@ router.get('/session', (req: Request, res: Response) => {
   });
 });
 
-// POST /api/auth/demo-login — Enter as Demo Homeowner (Alex Carter)
-router.post('/demo-login', (req: Request, res: Response) => {
-  const isProduction = process.env.NODE_ENV === 'production';
-  const demoExplicitlyEnabled = process.env.ENABLE_DEMO_LOGIN === 'true';
+// POST /api/auth/register — Register a new homeowner account
+router.post('/register', async (req: Request, res: Response) => {
+  try {
+    const { name, email, password } = req.body || {};
+    const { user, token } = await authService.register({ name, email, password });
 
-  if (isProduction && !demoExplicitlyEnabled) {
-    return res.status(403).json({ error: 'Demo login is disabled in production environment.' });
+    setSessionCookie(res, req, token);
+
+    return res.status(201).json({
+      authenticated: true,
+      user,
+      token,
+      message: 'Account created successfully',
+    });
+  } catch (err: any) {
+    const statusCode = err.statusCode || 400;
+    return res.status(statusCode).json({
+      error: err.message || 'Registration failed. Please check your information and try again.',
+    });
   }
+});
 
-  const { session, token } = authService.createDemoSession();
+// POST /api/auth/login — Authenticate with email & password
+router.post('/login', async (req: Request, res: Response) => {
+  try {
+    const { email, password } = req.body || {};
+    const { user, token } = await authService.login({ email, password });
 
-  // Set HttpOnly cookie
-  const isSecure = req.secure || req.headers['x-forwarded-proto'] === 'https';
-  const maxAgeSeconds = Math.floor(SESSION_DURATION_MS / 1000);
-  const cookieFlags = [
-    `fixflow_session=${encodeURIComponent(token)}`,
-    'Path=/',
-    'HttpOnly',
-    'SameSite=Lax',
-    `Max-Age=${maxAgeSeconds}`,
-  ];
+    setSessionCookie(res, req, token);
 
-  if (isSecure) {
-    cookieFlags.push('Secure');
+    return res.status(200).json({
+      authenticated: true,
+      user,
+      token,
+      message: 'Signed in successfully',
+    });
+  } catch (err: any) {
+    const statusCode = err.statusCode || 401;
+    return res.status(statusCode).json({
+      error: err.message || 'Invalid email or password.',
+    });
   }
-
-  res.setHeader('Set-Cookie', cookieFlags.join('; '));
-
-  return res.status(200).json({
-    authenticated: true,
-    user: {
-      id: session.user_id,
-      name: session.user_name,
-      email: session.user_email,
-      role: session.role,
-    },
-    token, // Provided for programmatic clients / API testing
-  });
 });
 
 // POST /api/auth/logout — Invalidate server session and clear cookie
@@ -70,12 +99,7 @@ router.post('/logout', (req: Request, res: Response) => {
     authService.deleteSession(token);
   }
 
-  // Clear session cookie with Max-Age=0
-  res.setHeader(
-    'Set-Cookie',
-    'fixflow_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
-  );
-
+  clearSessionCookie(res);
   return res.json({ authenticated: false, message: 'Logged out successfully' });
 });
 

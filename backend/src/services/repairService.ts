@@ -12,6 +12,7 @@ export interface RepairCase {
   appointment_date: string | null;
   appointment_notes: string | null;
   resolution_notes: string | null;
+  user_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -35,8 +36,21 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   closed: [],
 };
 
+function resolveUserAndDb(
+  userOrDb?: string | DatabaseType | null,
+  targetDb?: DatabaseType
+): { userId: string | null; activeDb: DatabaseType } {
+  if (typeof userOrDb === 'string') {
+    return { userId: userOrDb, activeDb: targetDb || db };
+  }
+  if (userOrDb && typeof userOrDb === 'object' && 'prepare' in userOrDb) {
+    return { userId: null, activeDb: userOrDb as DatabaseType };
+  }
+  return { userId: null, activeDb: targetDb || db };
+}
+
 export function getAllRepairCases(
-  filters?: { status?: string; appliance_id?: string },
+  filters?: { status?: string; appliance_id?: string; user_id?: string | null },
   targetDb?: DatabaseType
 ): (RepairCase & { appliance_name?: string })[] {
   const activeDb = targetDb || db;
@@ -47,6 +61,14 @@ export function getAllRepairCases(
   `;
   const conditions: string[] = [];
   const params: string[] = [];
+
+  // Scoping: If user is authenticated, query their owned cases/appliances
+  if (filters?.user_id && filters.user_id !== 'sample') {
+    conditions.push('(rc.user_id = ? OR a.user_id = ?)');
+    params.push(filters.user_id, filters.user_id);
+  } else if (filters?.user_id === 'sample') {
+    conditions.push("(rc.user_id = 'sample' OR a.user_id = 'sample' OR a.user_id IS NULL)");
+  }
 
   if (filters?.status) {
     conditions.push('rc.status = ?');
@@ -68,17 +90,31 @@ export function getAllRepairCases(
 
 export function getRepairCaseById(
   id: string,
+  userIdOrDb?: string | DatabaseType | null,
   targetDb?: DatabaseType
 ): (RepairCase & { appliance_name?: string; events?: RepairEvent[] }) | undefined {
-  const activeDb = targetDb || db;
+  const { userId, activeDb } = resolveUserAndDb(userIdOrDb, targetDb);
   const repairCase = activeDb.prepare(`
-    SELECT rc.*, a.name as appliance_name
+    SELECT rc.*, a.name as appliance_name, a.user_id as appliance_user_id
     FROM repair_cases rc
     JOIN appliances a ON a.id = rc.appliance_id
     WHERE rc.id = ?
-  `).get(id) as (RepairCase & { appliance_name?: string }) | undefined;
+  `).get(id) as (RepairCase & { appliance_name?: string; appliance_user_id?: string | null }) | undefined;
 
   if (!repairCase) return undefined;
+
+  // Check ownership
+  const isSample =
+    repairCase.user_id === 'sample' ||
+    repairCase.appliance_user_id === 'sample' ||
+    repairCase.appliance_user_id === null ||
+    repairCase.appliance_user_id === undefined;
+
+  if (!isSample && userId) {
+    if (repairCase.user_id !== userId && repairCase.appliance_user_id !== userId) {
+      return undefined;
+    }
+  }
 
   const events = activeDb.prepare(`
     SELECT * FROM repair_events WHERE case_id = ? ORDER BY created_at ASC, rowid ASC
@@ -87,12 +123,34 @@ export function getRepairCaseById(
   return { ...repairCase, events };
 }
 
-export function createRepairCase(input: CreateRepairCaseInput, targetDb?: DatabaseType): RepairCase {
-  const activeDb = targetDb || db;
-  const appliance = activeDb.prepare('SELECT id FROM appliances WHERE id = ?').get(input.appliance_id);
+export function createRepairCase(
+  input: CreateRepairCaseInput,
+  userIdOrDb?: string | DatabaseType,
+  targetDb?: DatabaseType
+): RepairCase {
+  let userId = 'sample';
+  let activeDb: DatabaseType;
+
+  if (typeof userIdOrDb === 'string') {
+    userId = userIdOrDb;
+    activeDb = targetDb || db;
+  } else if (userIdOrDb && typeof userIdOrDb === 'object' && 'prepare' in userIdOrDb) {
+    activeDb = userIdOrDb as DatabaseType;
+  } else {
+    activeDb = targetDb || db;
+  }
+
+  const appliance = activeDb.prepare('SELECT id, user_id FROM appliances WHERE id = ?').get(input.appliance_id) as any;
   if (!appliance) {
     const error = new Error('Appliance not found');
     (error as any).status = 404;
+    throw error;
+  }
+
+  // If user is authenticated, ensure they do not create cases on other users' private appliances
+  if (userId !== 'sample' && appliance.user_id && appliance.user_id !== 'sample' && appliance.user_id !== userId) {
+    const error = new Error('Access denied: You cannot create a repair case for an appliance you do not own.');
+    (error as any).status = 403;
     throw error;
   }
 
@@ -101,8 +159,8 @@ export function createRepairCase(input: CreateRepairCaseInput, targetDb?: Databa
 
   const createCaseAndEvent = activeDb.transaction(() => {
     activeDb.prepare(`
-      INSERT INTO repair_cases (id, appliance_id, issue_description, priority, status, appointment_date, appointment_notes, created_at, updated_at)
-      VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?)
+      INSERT INTO repair_cases (id, appliance_id, issue_description, priority, status, appointment_date, appointment_notes, user_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?, ?)
     `).run(
       id,
       input.appliance_id,
@@ -110,6 +168,7 @@ export function createRepairCase(input: CreateRepairCaseInput, targetDb?: Databa
       input.priority,
       input.appointment_date || null,
       input.appointment_notes || null,
+      userId,
       now,
       now
     );
@@ -128,13 +187,16 @@ export function createRepairCase(input: CreateRepairCaseInput, targetDb?: Databa
 export function updateRepairStatus(
   id: string,
   input: UpdateRepairStatusInput,
+  userIdOrDb?: string | DatabaseType | null,
   targetDb?: DatabaseType
 ): RepairCase {
-  const activeDb = targetDb || db;
-  const existing = activeDb.prepare('SELECT * FROM repair_cases WHERE id = ?').get(id) as RepairCase | undefined;
+  const { userId, activeDb } = resolveUserAndDb(userIdOrDb, targetDb);
+  const existing = getRepairCaseById(id, userId, activeDb);
 
   if (!existing) {
-    throw new Error('Repair case not found');
+    const err = new Error('Repair case not found');
+    (err as any).status = 404;
+    throw err;
   }
 
   const allowedStatuses = VALID_TRANSITIONS[existing.status];
@@ -179,32 +241,73 @@ export function updateRepairStatus(
   return getRepairCaseById(id, activeDb) as RepairCase;
 }
 
-export function getDashboardSummary(targetDb?: DatabaseType) {
-  const activeDb = targetDb || db;
-  const totalAppliances = (activeDb.prepare('SELECT COUNT(*) as count FROM appliances').get() as { count: number }).count;
-  const activeRepairs = (activeDb.prepare("SELECT COUNT(*) as count FROM repair_cases WHERE status IN ('open', 'diagnosed', 'scheduled', 'in_progress')").get() as { count: number }).count;
-  const openRepairs = (activeDb.prepare("SELECT COUNT(*) as count FROM repair_cases WHERE status IN ('open', 'diagnosed', 'in_progress')").get() as { count: number }).count;
-  const scheduledVisits = (activeDb.prepare("SELECT COUNT(*) as count FROM repair_cases WHERE status = 'scheduled'").get() as { count: number }).count;
-  const resolvedCases = (activeDb.prepare("SELECT COUNT(*) as count FROM repair_cases WHERE status IN ('resolved', 'closed')").get() as { count: number }).count;
-  const totalCases = (activeDb.prepare('SELECT COUNT(*) as count FROM repair_cases').get() as { count: number }).count;
+export function getDashboardSummary(userIdOrDb?: string | DatabaseType | null, targetDb?: DatabaseType) {
+  const { userId, activeDb } = resolveUserAndDb(userIdOrDb, targetDb);
+  const isAuthUser = Boolean(userId && userId !== 'sample');
 
-  const recentEvents = activeDb.prepare(`
-    SELECT re.*, rc.appliance_id, a.name as appliance_name
-    FROM repair_events re
-    JOIN repair_cases rc ON rc.id = re.case_id
-    JOIN appliances a ON a.id = rc.appliance_id
-    ORDER BY re.created_at DESC, re.rowid DESC
-    LIMIT 10
-  `).all();
+  let totalAppliances = 0;
+  let activeRepairs = 0;
+  let openRepairs = 0;
+  let scheduledVisits = 0;
+  let resolvedCases = 0;
+  let totalCases = 0;
+  let recentEvents: any[] = [];
+  let upcomingAppointments: any[] = [];
 
-  const upcomingAppointments = activeDb.prepare(`
-    SELECT rc.*, a.name as appliance_name
-    FROM repair_cases rc
-    JOIN appliances a ON a.id = rc.appliance_id
-    WHERE rc.status = 'scheduled' AND rc.appointment_date IS NOT NULL
-    ORDER BY rc.appointment_date ASC
-    LIMIT 5
-  `).all();
+  if (isAuthUser) {
+    totalAppliances = (activeDb.prepare('SELECT COUNT(*) as count FROM appliances WHERE user_id = ?').get(userId) as { count: number }).count;
+    activeRepairs = (activeDb.prepare("SELECT COUNT(*) as count FROM repair_cases rc JOIN appliances a ON a.id = rc.appliance_id WHERE (rc.user_id = ? OR a.user_id = ?) AND rc.status IN ('open', 'diagnosed', 'scheduled', 'in_progress')").get(userId, userId) as { count: number }).count;
+    openRepairs = (activeDb.prepare("SELECT COUNT(*) as count FROM repair_cases rc JOIN appliances a ON a.id = rc.appliance_id WHERE (rc.user_id = ? OR a.user_id = ?) AND rc.status IN ('open', 'diagnosed', 'in_progress')").get(userId, userId) as { count: number }).count;
+    scheduledVisits = (activeDb.prepare("SELECT COUNT(*) as count FROM repair_cases rc JOIN appliances a ON a.id = rc.appliance_id WHERE (rc.user_id = ? OR a.user_id = ?) AND rc.status = 'scheduled'").get(userId, userId) as { count: number }).count;
+    resolvedCases = (activeDb.prepare("SELECT COUNT(*) as count FROM repair_cases rc JOIN appliances a ON a.id = rc.appliance_id WHERE (rc.user_id = ? OR a.user_id = ?) AND rc.status IN ('resolved', 'closed')").get(userId, userId) as { count: number }).count;
+    totalCases = (activeDb.prepare('SELECT COUNT(*) as count FROM repair_cases rc JOIN appliances a ON a.id = rc.appliance_id WHERE (rc.user_id = ? OR a.user_id = ?)').get(userId, userId) as { count: number }).count;
+
+    recentEvents = activeDb.prepare(`
+      SELECT re.*, rc.appliance_id, a.name as appliance_name
+      FROM repair_events re
+      JOIN repair_cases rc ON rc.id = re.case_id
+      JOIN appliances a ON a.id = rc.appliance_id
+      WHERE (rc.user_id = ? OR a.user_id = ?)
+      ORDER BY re.created_at DESC, re.rowid DESC
+      LIMIT 10
+    `).all(userId, userId);
+
+    upcomingAppointments = activeDb.prepare(`
+      SELECT rc.*, a.name as appliance_name
+      FROM repair_cases rc
+      JOIN appliances a ON a.id = rc.appliance_id
+      WHERE (rc.user_id = ? OR a.user_id = ?) AND rc.status = 'scheduled' AND rc.appointment_date IS NOT NULL
+      ORDER BY rc.appointment_date ASC
+      LIMIT 5
+    `).all(userId, userId);
+  } else {
+    // Guest mode / sample summary
+    totalAppliances = (activeDb.prepare("SELECT COUNT(*) as count FROM appliances WHERE user_id = 'sample' OR user_id IS NULL").get() as { count: number }).count;
+    activeRepairs = (activeDb.prepare("SELECT COUNT(*) as count FROM repair_cases rc JOIN appliances a ON a.id = rc.appliance_id WHERE (rc.user_id = 'sample' OR a.user_id = 'sample' OR a.user_id IS NULL) AND rc.status IN ('open', 'diagnosed', 'scheduled', 'in_progress')").get() as { count: number }).count;
+    openRepairs = (activeDb.prepare("SELECT COUNT(*) as count FROM repair_cases rc JOIN appliances a ON a.id = rc.appliance_id WHERE (rc.user_id = 'sample' OR a.user_id = 'sample' OR a.user_id IS NULL) AND rc.status IN ('open', 'diagnosed', 'in_progress')").get() as { count: number }).count;
+    scheduledVisits = (activeDb.prepare("SELECT COUNT(*) as count FROM repair_cases rc JOIN appliances a ON a.id = rc.appliance_id WHERE (rc.user_id = 'sample' OR a.user_id = 'sample' OR a.user_id IS NULL) AND rc.status = 'scheduled'").get() as { count: number }).count;
+    resolvedCases = (activeDb.prepare("SELECT COUNT(*) as count FROM repair_cases rc JOIN appliances a ON a.id = rc.appliance_id WHERE (rc.user_id = 'sample' OR a.user_id = 'sample' OR a.user_id IS NULL) AND rc.status IN ('resolved', 'closed')").get() as { count: number }).count;
+    totalCases = (activeDb.prepare("SELECT COUNT(*) as count FROM repair_cases rc JOIN appliances a ON a.id = rc.appliance_id WHERE (rc.user_id = 'sample' OR a.user_id = 'sample' OR a.user_id IS NULL)").get() as { count: number }).count;
+
+    recentEvents = activeDb.prepare(`
+      SELECT re.*, rc.appliance_id, a.name as appliance_name
+      FROM repair_events re
+      JOIN repair_cases rc ON rc.id = re.case_id
+      JOIN appliances a ON a.id = rc.appliance_id
+      WHERE (rc.user_id = 'sample' OR a.user_id = 'sample' OR a.user_id IS NULL)
+      ORDER BY re.created_at DESC, re.rowid DESC
+      LIMIT 10
+    `).all();
+
+    upcomingAppointments = activeDb.prepare(`
+      SELECT rc.*, a.name as appliance_name
+      FROM repair_cases rc
+      JOIN appliances a ON a.id = rc.appliance_id
+      WHERE (rc.user_id = 'sample' OR a.user_id = 'sample' OR a.user_id IS NULL) AND rc.status = 'scheduled' AND rc.appointment_date IS NOT NULL
+      ORDER BY rc.appointment_date ASC
+      LIMIT 5
+    `).all();
+  }
 
   return {
     counts: {
@@ -217,5 +320,6 @@ export function getDashboardSummary(targetDb?: DatabaseType) {
     },
     recent_events: recentEvents,
     upcoming_appointments: upcomingAppointments,
+    is_sample_workspace: !isAuthUser,
   };
 }

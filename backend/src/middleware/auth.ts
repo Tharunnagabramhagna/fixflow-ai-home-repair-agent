@@ -29,6 +29,17 @@ export function extractSessionToken(req: Request): string | null {
   return null;
 }
 
+export function optionalAuth(req: AuthenticatedRequest, _res: Response, next: NextFunction): void {
+  const token = extractSessionToken(req);
+  if (token) {
+    const session = authService.getSessionByToken(token);
+    if (session) {
+      req.user = session.user;
+    }
+  }
+  next();
+}
+
 export function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
   const token = extractSessionToken(req);
 
@@ -47,5 +58,5 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
     return next();
   }
 
-  res.status(401).json({ error: 'Authentication required. Please sign in.' });
+  res.status(401).json({ error: 'Authentication required. Please sign in or create an account.' });
 }

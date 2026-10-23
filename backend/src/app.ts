@@ -4,7 +4,7 @@ import authRouter from './routes/auth';
 import appliancesRouter from './routes/appliances';
 import repairsRouter from './routes/repairs';
 import dashboardRouter from './routes/dashboard';
-import { requireAuth } from './middleware/auth';
+import { optionalAuth } from './middleware/auth';
 
 const app = express();
 
@@ -35,10 +35,11 @@ app.get('/api/health', (_req: Request, res: Response) => {
 // Authentication routes (public)
 app.use('/api/auth', authRouter);
 
-// Protected Homeowner Routes (require active session)
-app.use('/api/appliances', requireAuth, appliancesRouter);
-app.use('/api/repairs', requireAuth, repairsRouter);
-app.use('/api/dashboard', requireAuth, dashboardRouter);
+// Homeowner & Guest workspace routes (optionalAuth extracts session if present; mutations enforce requireAuth)
+app.use('/api/appliances', optionalAuth, appliancesRouter);
+app.use('/api/repairs', optionalAuth, repairsRouter);
+app.use('/api/dashboard', optionalAuth, dashboardRouter);
+
 
 // Centralized error handling
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

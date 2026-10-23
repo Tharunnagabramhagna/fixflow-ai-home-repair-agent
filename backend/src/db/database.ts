@@ -97,6 +97,7 @@ const FALLBACK_SCHEMA_SQL = `
 `;
 
 const SESSIONS_SCHEMA_FILE_PATH = path.resolve(__dirname, '..', '..', '..', 'database', 'schema', '002_sessions_schema.sql');
+const USERS_SCHEMA_FILE_PATH = path.resolve(__dirname, '..', '..', '..', 'database', 'schema', '003_auth_users_schema.sql');
 
 export function initializeDatabase(targetDb?: DatabaseType): void {
   const activeDb = targetDb || db;
@@ -113,8 +114,24 @@ export function initializeDatabase(targetDb?: DatabaseType): void {
   // Apply sessions schema migration if exists
   if (fs.existsSync(SESSIONS_SCHEMA_FILE_PATH)) {
     activeDb.exec(fs.readFileSync(SESSIONS_SCHEMA_FILE_PATH, 'utf-8'));
+  }
+
+  // Apply users schema migration if exists
+  if (fs.existsSync(USERS_SCHEMA_FILE_PATH)) {
+    activeDb.exec(fs.readFileSync(USERS_SCHEMA_FILE_PATH, 'utf-8'));
   } else {
     activeDb.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'homeowner',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
       CREATE TABLE IF NOT EXISTS user_sessions (
         id TEXT PRIMARY KEY,
         token_hash TEXT NOT NULL UNIQUE,
@@ -129,6 +146,29 @@ export function initializeDatabase(targetDb?: DatabaseType): void {
       CREATE INDEX IF NOT EXISTS idx_user_sessions_expires ON user_sessions(expires_at);
     `);
   }
+
+  // Ensure user_id column on appliances table
+  try {
+    const applianceCols = activeDb.prepare("PRAGMA table_info(appliances)").all() as { name: string }[];
+    if (!applianceCols.some((c) => c.name === 'user_id')) {
+      activeDb.exec("ALTER TABLE appliances ADD COLUMN user_id TEXT;");
+      activeDb.exec("UPDATE appliances SET user_id = 'sample' WHERE user_id IS NULL;");
+    }
+  } catch (err) {
+    console.warn('[Database] Appliance user_id migration warning:', err);
+  }
+
+  // Ensure user_id column on repair_cases table
+  try {
+    const repairCols = activeDb.prepare("PRAGMA table_info(repair_cases)").all() as { name: string }[];
+    if (!repairCols.some((c) => c.name === 'user_id')) {
+      activeDb.exec("ALTER TABLE repair_cases ADD COLUMN user_id TEXT;");
+      activeDb.exec("UPDATE repair_cases SET user_id = 'sample' WHERE user_id IS NULL;");
+    }
+  } catch (err) {
+    console.warn('[Database] Repair cases user_id migration warning:', err);
+  }
 }
 
 export default db;
+

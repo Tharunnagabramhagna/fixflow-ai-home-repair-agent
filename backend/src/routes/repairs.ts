@@ -1,14 +1,18 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import { createRepairCaseSchema, updateRepairStatusSchema } from '../validators';
 import * as repairService from '../services/repairService';
+import { requireAuth, AuthenticatedRequest } from '../middleware/auth';
 
 const router = Router();
 
-// GET /api/repairs
-router.get('/', (req: Request, res: Response) => {
+// GET /api/repairs — Returns user's cases if authenticated, or sample cases for guest exploration
+router.get('/', (req: AuthenticatedRequest, res: Response) => {
   const { status, appliance_id } = req.query;
-  const filters: { status?: string; appliance_id?: string } = {};
+  const userId = req.user?.id || null;
+  const filters: { status?: string; appliance_id?: string; user_id?: string | null } = {
+    user_id: userId,
+  };
 
   if (typeof status === 'string' && status) {
     filters.status = status;
@@ -21,11 +25,12 @@ router.get('/', (req: Request, res: Response) => {
   res.json({ data: cases });
 });
 
-// POST /api/repairs
-router.post('/', (req: Request, res: Response, next: NextFunction) => {
+// POST /api/repairs — Submit diagnostic fault report (requires authentication)
+router.post('/', requireAuth, (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const input = createRepairCaseSchema.parse(req.body);
-    const repairCase = repairService.createRepairCase(input);
+    const userId = req.user?.id || 'sample';
+    const repairCase = repairService.createRepairCase(input, userId);
     res.status(201).json({ data: repairCase });
   } catch (err: any) {
     if (err instanceof ZodError) {
@@ -35,18 +40,23 @@ router.post('/', (req: Request, res: Response, next: NextFunction) => {
       });
       return;
     }
-    if (err.message === 'Appliance not found') {
+    if (err.status === 404 || err.message === 'Appliance not found') {
       res.status(404).json({ error: 'Appliance not found' });
+      return;
+    }
+    if (err.status === 403) {
+      res.status(403).json({ error: err.message });
       return;
     }
     next(err);
   }
 });
 
-// GET /api/repairs/:id
-router.get('/:id', (req: Request, res: Response) => {
+// GET /api/repairs/:id — Get details of a sample case or owned private case
+router.get('/:id', (req: AuthenticatedRequest, res: Response) => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const repairCase = repairService.getRepairCaseById(id);
+  const userId = req.user?.id || null;
+  const repairCase = repairService.getRepairCaseById(id, userId);
   if (!repairCase) {
     res.status(404).json({ error: 'Repair case not found' });
     return;
@@ -54,12 +64,13 @@ router.get('/:id', (req: Request, res: Response) => {
   res.json({ data: repairCase });
 });
 
-// PATCH /api/repairs/:id/status
-router.patch('/:id/status', (req: Request, res: Response, next: NextFunction) => {
+// PATCH /api/repairs/:id/status — Transition repair case status (requires authentication)
+router.patch('/:id/status', requireAuth, (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const userId = req.user?.id || null;
     const input = updateRepairStatusSchema.parse(req.body);
-    const updated = repairService.updateRepairStatus(id, input);
+    const updated = repairService.updateRepairStatus(id, input, userId);
     res.json({ data: updated });
   } catch (err: any) {
     if (err instanceof ZodError) {
@@ -69,8 +80,8 @@ router.patch('/:id/status', (req: Request, res: Response, next: NextFunction) =>
       });
       return;
     }
-    if (err.message === 'Repair case not found') {
-      res.status(404).json({ error: err.message });
+    if (err.status === 404 || err.message === 'Repair case not found') {
+      res.status(404).json({ error: err.message || 'Repair case not found' });
       return;
     }
     if (err.message && err.message.startsWith('Cannot transition')) {

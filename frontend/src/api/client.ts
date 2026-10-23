@@ -6,21 +6,39 @@ import type {
   CreateRepairCaseData,
   UpdateRepairStatusData,
   AuthUser,
+  LoginCredentials,
+  RegisterCredentials,
 } from '../types';
 
-const API_BASE = '/api';
+const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || '/api';
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-    ...options,
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+      ...options,
+    });
+  } catch (networkError: any) {
+    console.error('[FixFlow Client Network Error]', networkError);
+    throw new Error(
+      'Unable to connect to the FixFlow server. Please check your connection or ensure the API service is active.'
+    );
+  }
 
-  const body = await response.json();
+  let body: any;
+  try {
+    body = await response.json();
+  } catch {
+    if (!response.ok) {
+      throw new Error(`Server returned HTTP ${response.status} (${response.statusText || 'Error'})`);
+    }
+    throw new Error('Received unexpected non-JSON response from server.');
+  }
 
   if (!response.ok) {
     const errorMsg = body?.error || `HTTP error ${response.status}`;
@@ -33,32 +51,49 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   // Authentication & Session
-  getSession: () => fetchJson<{ authenticated: boolean; user: AuthUser | null; expires_at?: string }>(`${API_BASE}/auth/session`),
-  loginDemo: () =>
-    fetchJson<{ authenticated: boolean; user: AuthUser; token?: string }>(`${API_BASE}/auth/demo-login`, {
+  getSession: () =>
+    fetchJson<{ authenticated: boolean; user: AuthUser | null; expires_at?: string }>(`${API_BASE}/auth/session`),
+
+  register: (credentials: RegisterCredentials) =>
+    fetchJson<{ authenticated: boolean; user: AuthUser; token?: string; message?: string }>(`${API_BASE}/auth/register`, {
       method: 'POST',
+      body: JSON.stringify(credentials),
     }),
+
+  login: (credentials: LoginCredentials) =>
+    fetchJson<{ authenticated: boolean; user: AuthUser; token?: string; message?: string }>(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      body: JSON.stringify(credentials),
+    }),
+
   logout: () =>
     fetchJson<{ authenticated: boolean; message: string }>(`${API_BASE}/auth/logout`, {
       method: 'POST',
     }),
 
   // Health
-  getHealth: () => fetchJson<{ status: string; service: string; version: string; timestamp: string }>(`${API_BASE}/health`),
+  getHealth: () =>
+    fetchJson<{ status: string; service: string; version: string; timestamp: string }>(`${API_BASE}/health`),
 
   // Dashboard
-  getDashboardSummary: () => fetchJson<DashboardSummary>(`${API_BASE}/dashboard/summary`),
+  getDashboardSummary: () =>
+    fetchJson<DashboardSummary>(`${API_BASE}/dashboard/summary`),
 
   // Appliances
-  getAppliances: () => fetchJson<Appliance[]>(`${API_BASE}/appliances`),
-  getAppliance: (id: string) => fetchJson<Appliance>(`${API_BASE}/appliances/${id}`),
+  getAppliances: () =>
+    fetchJson<Appliance[]>(`${API_BASE}/appliances`),
+
+  getAppliance: (id: string) =>
+    fetchJson<Appliance>(`${API_BASE}/appliances/${id}`),
+
   createAppliance: (data: CreateApplianceData) =>
     fetchJson<Appliance>(`${API_BASE}/appliances`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
   getApplianceHistory: (id: string) =>
-    fetchJson<{ appliance: Appliance; cases: RepairCase[]; events: any[] }>(`${API_BASE}/appliances/${id}/history`),
+    fetchJson<{ appliance: Appliance; cases: RepairCase[]; events: any[]; documents: any[] }>(`${API_BASE}/appliances/${id}/history`),
 
   // Repairs
   getRepairs: (filters?: { status?: string; appliance_id?: string }) => {
@@ -68,12 +103,16 @@ export const api = {
     const qs = params.toString();
     return fetchJson<RepairCase[]>(`${API_BASE}/repairs${qs ? `?${qs}` : ''}`);
   },
-  getRepair: (id: string) => fetchJson<RepairCase>(`${API_BASE}/repairs/${id}`),
+
+  getRepair: (id: string) =>
+    fetchJson<RepairCase>(`${API_BASE}/repairs/${id}`),
+
   createRepair: (data: CreateRepairCaseData) =>
     fetchJson<RepairCase>(`${API_BASE}/repairs`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
   updateRepairStatus: (id: string, data: UpdateRepairStatusData) =>
     fetchJson<RepairCase>(`${API_BASE}/repairs/${id}/status`, {
       method: 'PATCH',

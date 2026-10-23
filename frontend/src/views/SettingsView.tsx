@@ -8,18 +8,33 @@ import {
   Info,
 } from 'lucide-react';
 
+import { useAuth } from '../context/AuthContext';
+
 interface SettingsViewProps {
   onNavigateTab?: (tab: string) => void;
+  onOpenAuthModal?: () => void;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab }) => {
-  const [profile, setProfile] = useState({
-    name: 'Alex Carter',
-    email: 'alex.carter@gmail.com',
+export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab, onOpenAuthModal }) => {
+  const { user, isGuest } = useAuth();
+  const [profile, setProfile] = useState(() => ({
+    name: user?.name || (isGuest ? 'Guest Explorer' : 'Homeowner'),
+    email: user?.email || (isGuest ? 'guest@fixflow.local' : 'homeowner@fixflow.local'),
     phone: '+1 (555) 839-2041',
     address: '742 Evergreen Terrace, Seattle, WA 98101',
     residenceType: 'Single Family Home',
-  });
+  }));
+
+  // Update profile when user state changes
+  React.useEffect(() => {
+    if (user) {
+      setProfile((prev) => ({
+        ...prev,
+        name: user.name,
+        email: user.email,
+      }));
+    }
+  }, [user]);
 
   const [notifications, setNotifications] = useState({
     emailWarranty: true,
@@ -28,6 +43,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab }) => 
   });
 
   const [savedToast, setSavedToast] = useState(false);
+
+  const initials = user
+    ? user.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
+    : 'GE';
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,15 +88,41 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateTab }) => 
         )}
       </div>
 
+      {/* Guest Mode Banner in Settings */}
+      {isGuest && (
+        <div className="bg-[#B49A68]/10 border border-[#B49A68]/30 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-[#24342F]">
+          <div className="flex items-center gap-2.5">
+            <Info className="w-4 h-4 text-[#B49A68] shrink-0" />
+            <span>
+              <strong>Guest Workspace:</strong> You are exploring FixFlow without an account. Profile preferences and sample data are not saved to a permanent account.
+            </span>
+          </div>
+          {onOpenAuthModal && (
+            <button
+              onClick={onOpenAuthModal}
+              className="px-3.5 py-1.5 rounded-full bg-[#183B32] hover:bg-[#122C25] text-white text-xs font-semibold shrink-0 transition-colors"
+            >
+              Create Account
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Profile Card */}
       <div className="bg-white rounded-2xl border border-[#E6E4DA] p-6 shadow-xs space-y-5">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-full bg-[#DDE7DD] border border-[#CBDBCB] flex items-center justify-center text-[#183B32] font-bold text-sm shrink-0">
-            AC
+            {initials}
           </div>
           <div>
-            <h2 className="text-base font-bold text-[#183B32]">Homeowner Profile</h2>
-            <p className="text-xs text-[#687871]">Primary account holder for FixFlow digital repair passports</p>
+            <h2 className="text-base font-bold text-[#183B32]">
+              {isGuest ? 'Guest Explorer Profile' : 'Homeowner Profile'}
+            </h2>
+            <p className="text-xs text-[#687871]">
+              {isGuest
+                ? 'Temporary exploration session for FixFlow repair passports'
+                : 'Primary account holder for FixFlow digital repair passports'}
+            </p>
           </div>
         </div>
 

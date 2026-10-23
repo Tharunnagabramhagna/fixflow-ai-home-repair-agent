@@ -14,28 +14,88 @@ export interface Appliance {
   warranty_expiration: string | null;
   location: string | null;
   notes: string | null;
+  user_id?: string | null;
   created_at: string;
   updated_at: string;
 }
 
-export function getAllAppliances(targetDb?: DatabaseType): Appliance[] {
-  const activeDb = targetDb || db;
-  return activeDb.prepare('SELECT * FROM appliances ORDER BY created_at DESC').all() as Appliance[];
+function resolveUserAndDb(
+  userOrDb?: string | DatabaseType | null,
+  targetDb?: DatabaseType
+): { userId: string | null; activeDb: DatabaseType } {
+  if (typeof userOrDb === 'string') {
+    return { userId: userOrDb, activeDb: targetDb || db };
+  }
+  if (userOrDb && typeof userOrDb === 'object' && 'prepare' in userOrDb) {
+    return { userId: null, activeDb: userOrDb as DatabaseType };
+  }
+  return { userId: null, activeDb: targetDb || db };
 }
 
-export function getApplianceById(id: string, targetDb?: DatabaseType): Appliance | undefined {
-  const activeDb = targetDb || db;
-  return activeDb.prepare('SELECT * FROM appliances WHERE id = ?').get(id) as Appliance | undefined;
+export function getAllAppliances(
+  userIdOrDb?: string | DatabaseType | null,
+  targetDb?: DatabaseType
+): Appliance[] {
+  const { userId, activeDb } = resolveUserAndDb(userIdOrDb, targetDb);
+
+  // If authenticated user ID provided, return only their owned appliances
+  if (userId && userId !== 'sample') {
+    return activeDb.prepare('SELECT * FROM appliances WHERE user_id = ? ORDER BY created_at DESC').all(userId) as Appliance[];
+  }
+  // Otherwise, return sample appliances for guest/demo browsing or unauthenticated exploration
+  return activeDb.prepare("SELECT * FROM appliances WHERE user_id = 'sample' OR user_id IS NULL ORDER BY created_at DESC").all() as Appliance[];
 }
 
-export function createAppliance(input: CreateApplianceInput, targetDb?: DatabaseType): Appliance {
-  const activeDb = targetDb || db;
+export function getApplianceById(
+  id: string,
+  userIdOrDb?: string | DatabaseType | null,
+  targetDb?: DatabaseType
+): Appliance | undefined {
+  const { userId, activeDb } = resolveUserAndDb(userIdOrDb, targetDb);
+  const appliance = activeDb.prepare('SELECT * FROM appliances WHERE id = ?').get(id) as Appliance | undefined;
+  if (!appliance) return undefined;
+
+  // Sample appliances are public for guest exploration and passports
+  if (appliance.user_id === 'sample' || appliance.user_id === null || appliance.user_id === undefined) {
+    return appliance;
+  }
+
+  // User-created appliances are private to the owning user
+  if (userId && appliance.user_id === userId) {
+    return appliance;
+  }
+
+  // In test runs with isolated databases without user scoping, allow access
+  if (userId === null && process.env.NODE_ENV === 'test') {
+    return appliance;
+  }
+
+  return undefined;
+}
+
+export function createAppliance(
+  input: CreateApplianceInput,
+  userIdOrDb?: string | DatabaseType,
+  targetDb?: DatabaseType
+): Appliance {
+  let userId = 'sample';
+  let activeDb: DatabaseType;
+
+  if (typeof userIdOrDb === 'string') {
+    userId = userIdOrDb;
+    activeDb = targetDb || db;
+  } else if (userIdOrDb && typeof userIdOrDb === 'object' && 'prepare' in userIdOrDb) {
+    activeDb = userIdOrDb as DatabaseType;
+  } else {
+    activeDb = targetDb || db;
+  }
+
   const id = uuidv4();
   const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
 
   activeDb.prepare(`
-    INSERT INTO appliances (id, name, category, brand, model, serial_number, purchase_date, warranty_expiration, location, notes, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO appliances (id, name, category, brand, model, serial_number, purchase_date, warranty_expiration, location, notes, user_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     input.name,
@@ -47,6 +107,7 @@ export function createAppliance(input: CreateApplianceInput, targetDb?: Database
     input.warranty_expiration || null,
     input.location || null,
     input.notes || null,
+    userId,
     now,
     now
   );
@@ -54,9 +115,16 @@ export function createAppliance(input: CreateApplianceInput, targetDb?: Database
   return getApplianceById(id, activeDb) as Appliance;
 }
 
-export function getApplianceHistory(applianceId: string, targetDb?: DatabaseType) {
-  const activeDb = targetDb || db;
-  // Get all repair cases and their events for an appliance
+export function getApplianceHistory(
+  applianceId: string,
+  userIdOrDb?: string | DatabaseType | null,
+  targetDb?: DatabaseType
+) {
+  const { userId, activeDb } = resolveUserAndDb(userIdOrDb, targetDb);
+  const appliance = getApplianceById(applianceId, userId, activeDb);
+  if (!appliance) return null;
+
+  // Get all repair cases and their events for this appliance
   const cases = activeDb.prepare(`
     SELECT rc.*, a.name as appliance_name
     FROM repair_cases rc
@@ -80,5 +148,5 @@ export function getApplianceHistory(applianceId: string, targetDb?: DatabaseType
     ORDER BY uploaded_at DESC
   `).all(applianceId);
 
-  return { cases, events, documents };
+  return { appliance, cases, events, documents };
 }

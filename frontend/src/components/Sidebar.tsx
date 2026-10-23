@@ -12,6 +12,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
+  Compass,
+  LogIn,
 } from 'lucide-react';
 import { FixFlowLogo } from './brand/FixFlowLogo';
 import type { AuthUser } from '../types';
@@ -29,6 +31,7 @@ export interface SidebarProps {
   onBackToLanding?: () => void;
   user?: AuthUser | null;
   onSignOut?: () => void;
+  onOpenAuthModal?: () => void;
 }
 
 interface NavItem {
@@ -53,8 +56,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onBackToLanding,
   user,
   onSignOut,
+  onOpenAuthModal,
 }) => {
-  const [avatarError, setAvatarError] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
 
   // Close drawer on Escape key press
@@ -106,9 +109,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'health', label: 'System Health', icon: Activity },
   ];
 
-  const userName = user?.name || 'Alex Carter';
-  const userEmail = user?.email || 'alex.carter@gmail.com';
-  const userInitial = userName.split(' ').map((n) => n[0]).join('').slice(0, 2) || 'AC';
+  const isGuest = !user;
+  const userName = user?.name || 'Guest Explorer';
+  const userEmail = user?.email || 'Sample Workspace';
+  const userInitial = user
+    ? user.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() || 'U'
+    : 'G';
 
   const renderNavButton = (item: NavItem, isDrawer: boolean = false) => {
     const Icon = item.icon;
@@ -212,9 +218,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </nav>
 
-      {/* Bottom Area: User Profile, Sign Out & Public Website Link */}
+      {/* Bottom Area: User / Guest Profile Card */}
       <div className="p-4 border-t border-[#E6E4DA] bg-white relative z-10 space-y-2 shrink-0">
-        {/* User Profile Card */}
+        {/* User / Guest Profile Card */}
         <button
           type="button"
           onClick={() => {
@@ -222,20 +228,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
             if (isDrawer) onCloseDrawer();
           }}
           className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-[#F6F4EE] transition-colors group text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
-          title="Manage Profile & Settings"
+          title={isGuest ? 'Guest Explorer (Settings)' : `${userName} — Profile & Settings`}
         >
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-9 h-9 rounded-full overflow-hidden bg-[#DDE7DD] border border-[#CBDBCB] shrink-0 flex items-center justify-center">
-              {!avatarError ? (
-                <img
-                  src="/avatars/alex_carter.jpg"
-                  alt={userName}
-                  className="w-full h-full object-cover"
-                  onError={() => setAvatarError(true)}
-                />
-              ) : (
-                <span className="text-xs font-bold text-[#183B32]">{userInitial}</span>
-              )}
+            <div className={`w-9 h-9 rounded-full overflow-hidden border shrink-0 flex items-center justify-center font-bold text-xs ${
+              isGuest ? 'bg-[#F6F4EE] border-[#CBDBCB] text-[#183B32]' : 'bg-[#DDE7DD] border-[#CBDBCB] text-[#183B32]'
+            }`}>
+              {isGuest ? <Compass className="w-4 h-4 text-[#183B32]" /> : userInitial}
             </div>
             <div className="min-w-0">
               <span className="text-xs font-semibold text-[#24342F] block truncate group-hover:text-[#183B32]">
@@ -249,21 +248,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <ChevronRight className="w-4 h-4 text-[#A3B2AA] group-hover:text-[#183B32] group-hover:translate-x-0.5 transition-all shrink-0" />
         </button>
 
-        {/* Action Row: Sign Out + Public Website */}
+        {/* Action Row: Guest Sign In / Authenticated Sign Out + Public Website */}
         <div className="pt-2 border-t border-[#E6E4DA]/60 space-y-1.5">
-          {onSignOut && (
+          {isGuest && onOpenAuthModal ? (
             <button
               type="button"
               onClick={() => {
                 if (isDrawer) onCloseDrawer();
-                onSignOut();
+                onOpenAuthModal();
               }}
-              className="w-full text-xs font-semibold text-[#687871] hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-200 rounded-xl py-2 px-3 transition-colors flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
-              title="Sign out of FixFlow household session"
+              className="w-full text-xs font-semibold text-white bg-[#183B32] hover:bg-[#122C25] rounded-xl py-2 px-3 transition-colors flex items-center justify-center gap-2 shadow-2xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
+              title="Create an account or sign in"
             >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Sign Out</span>
+              <LogIn className="w-3.5 h-3.5 text-[#B69A68]" />
+              <span>Create Account / Sign In</span>
             </button>
+          ) : (
+            onSignOut && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (isDrawer) onCloseDrawer();
+                  onSignOut();
+                }}
+                className="w-full text-xs font-semibold text-[#687871] hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-200 rounded-xl py-2 px-3 transition-colors flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
+                title="Sign out of FixFlow account"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Sign Out</span>
+              </button>
+            )
           )}
 
           {onBackToLanding && (
@@ -360,24 +374,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
       </nav>
 
-      {/* Bottom Icons: Profile, Website, Sign Out */}
+      {/* Bottom Icons: Profile/Guest, Website, Sign Out/In */}
       <div className="pt-3 border-t border-[#E6E4DA]/60 flex flex-col items-center gap-2.5 w-full px-2 shrink-0">
         <button
           onClick={() => onSelectTab('settings')}
-          className="w-9 h-9 rounded-full overflow-hidden bg-[#DDE7DD] border border-[#CBDBCB] flex items-center justify-center hover:ring-2 hover:ring-[#183B32] transition-all"
-          title={`${userName} (Settings & Profile)`}
+          className={`w-9 h-9 rounded-full overflow-hidden border flex items-center justify-center hover:ring-2 hover:ring-[#183B32] transition-all font-bold text-xs ${
+            isGuest ? 'bg-[#F6F4EE] border-[#CBDBCB] text-[#183B32]' : 'bg-[#DDE7DD] border-[#CBDBCB] text-[#183B32]'
+          }`}
+          title={`${userName} (${isGuest ? 'Guest Mode' : 'Profile & Settings'})`}
           aria-label="Profile and Settings"
         >
-          {!avatarError ? (
-            <img
-              src="/avatars/alex_carter.jpg"
-              alt={userName}
-              className="w-full h-full object-cover"
-              onError={() => setAvatarError(true)}
-            />
-          ) : (
-            <span className="text-xs font-bold text-[#183B32]">{userInitial}</span>
-          )}
+          {isGuest ? <Compass className="w-4 h-4 text-[#183B32]" /> : userInitial}
         </button>
 
         {onBackToLanding && (
@@ -391,15 +398,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         )}
 
-        {onSignOut && (
+        {isGuest && onOpenAuthModal ? (
           <button
-            onClick={onSignOut}
-            className="p-2.5 rounded-xl text-[#687871] hover:text-red-700 hover:bg-red-50 transition-colors"
-            title="Sign Out"
-            aria-label="Sign Out"
+            onClick={onOpenAuthModal}
+            className="p-2.5 rounded-xl text-white bg-[#183B32] hover:bg-[#122C25] transition-colors"
+            title="Sign In / Register"
+            aria-label="Sign In or Register"
           >
-            <LogOut className="w-4 h-4" />
+            <LogIn className="w-4 h-4" />
           </button>
+        ) : (
+          onSignOut && (
+            <button
+              onClick={onSignOut}
+              className="p-2.5 rounded-xl text-[#687871] hover:text-red-700 hover:bg-red-50 transition-colors"
+              title="Sign Out"
+              aria-label="Sign Out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          )
         )}
       </div>
     </div>
@@ -407,7 +425,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* 1. WIDE DESKTOP IN-FLOW SIDEBAR (Visible only when width >= 1440) */}
+      {/* 1. WIDE DESKTOP IN-FLOW SIDEBAR */}
       {isWideDesktop && (
         <aside
           className={`shrink-0 h-screen h-[100dvh] sticky top-0 z-30 transition-all duration-200 ${
@@ -419,7 +437,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </aside>
       )}
 
-      {/* 2. LAPTOP / TABLET / MOBILE SLIDE-IN DRAWER (Rendered when width < 1440 and drawerOpen) */}
+      {/* 2. LAPTOP / TABLET / MOBILE SLIDE-IN DRAWER */}
       {!isWideDesktop && drawerOpen && (
         <div
           className="fixed inset-0 z-50 flex"
@@ -463,16 +481,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <strong>Welcome to FixFlow — Smarter Home Care</strong>. This platform provides persistent digital Repair Passports for household appliances.
               </p>
               <div className="p-3 bg-[#F6F4EE] rounded-xl space-y-1.5">
-                <p className="font-semibold text-[#183B32]">Current Prototype Capabilities:</p>
+                <p className="font-semibold text-[#183B32]">Platform Capabilities:</p>
                 <ul className="list-disc pl-4 space-y-1 text-[#687871]">
                   <li>Register household appliances with model, serial & warranty dates</li>
                   <li>Report faults and track stateful repair cases</li>
                   <li>Audit chronological repair events and maintenance actions</li>
-                  <li>Local rule-based troubleshooting preview</li>
+                  <li>Inspect digital Repair Passports with warranty validation</li>
                 </ul>
               </div>
               <p className="text-[11px] text-[#8A9A92]">
-                For questions or hackathon evaluation support, visit our GitHub repository or contact the developer team.
+                For questions or evaluation support, visit our GitHub repository or contact the developer team.
               </p>
             </div>
             <div className="pt-2 flex justify-end">

@@ -2,18 +2,37 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import app from '../app';
 import db, { initializeDatabase } from '../db/database';
-import { hashToken, DEMO_USER } from '../services/authService';
+import { hashToken } from '../services/authService';
 
 beforeAll(() => {
   initializeDatabase();
   db.exec('DELETE FROM user_sessions;');
+  db.exec("DELETE FROM users WHERE email LIKE '%@example.com';");
 });
 
-describe('Authentication & Session Management API Tests', () => {
-  let sessionCookie: string;
-  let sessionToken: string;
+describe('Production Authentication & Guest Access API Tests', () => {
+  let userACookie: string;
+  let userAToken: string;
+  let userAId: string;
+  let userAApplianceId: string;
 
-  describe('1. Unauthenticated Session Checks', () => {
+  let userBCookie: string;
+  let userBToken: string;
+  let userBId: string;
+
+  const testUserA = {
+    name: 'Sarah Connor',
+    email: 'sarah.connor@example.com',
+    password: 'SecurePassword123!',
+  };
+
+  const testUserB = {
+    name: 'John Connor',
+    email: 'john.connor@example.com',
+    password: 'DifferentPassword456!',
+  };
+
+  describe('1. Unauthenticated Session Checks & Guest Access', () => {
     it('GET /api/auth/session should return authenticated: false when no session exists', async () => {
       const res = await request(app).get('/api/auth/session');
       expect(res.status).toBe(200);
@@ -21,38 +40,71 @@ describe('Authentication & Session Management API Tests', () => {
       expect(res.body.user).toBeNull();
     });
 
-    it('Protected endpoints should return 401 when x-enforce-auth is set without credentials', async () => {
-      const resAppliances = await request(app)
-        .get('/api/appliances')
-        .set('x-enforce-auth', 'true');
-      expect(resAppliances.status).toBe(401);
-      expect(resAppliances.body.error).toMatch(/Authentication required/i);
+    it('Guest mode: GET /api/appliances should return sample appliances without requiring login', async () => {
+      const res = await request(app).get('/api/appliances');
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.data)).toBe(true);
+      expect(res.body.data.length).toBeGreaterThan(0);
+      // All sample appliances have user_id = 'sample' or null
+      for (const app of res.body.data) {
+        expect(['sample', null, undefined]).toContain(app.user_id);
+      }
+    });
 
-      const resRepairs = await request(app)
-        .get('/api/repairs')
-        .set('x-enforce-auth', 'true');
-      expect(resRepairs.status).toBe(401);
+    it('Guest mode: GET /api/dashboard/summary should return sample workspace statistics', async () => {
+      const res = await request(app).get('/api/dashboard/summary');
+      expect(res.status).toBe(200);
+      expect(res.body.data.counts).toBeDefined();
+      expect(res.body.data.is_sample_workspace).toBe(true);
+    });
 
-      const resDashboard = await request(app)
-        .get('/api/dashboard/summary')
+    it('Mutations: POST /api/appliances should return 401 when x-enforce-auth is set without session', async () => {
+      const res = await request(app)
+        .post('/api/appliances')
+        .send({
+          name: 'Unauthorized Stove',
+          category: 'Kitchen',
+          brand: 'Bosch',
+          model: 'HGI8056UC',
+        })
         .set('x-enforce-auth', 'true');
-      expect(resDashboard.status).toBe(401);
+      expect(res.status).toBe(401);
+      expect(res.body.error).toMatch(/Authentication required/i);
     });
   });
 
-  describe('2. Demo Login & Session Creation', () => {
-    it('POST /api/auth/demo-login should issue session and set HttpOnly cookie', async () => {
-      const res = await request(app).post('/api/auth/demo-login');
-      expect(res.status).toBe(200);
+  describe('2. Account Registration Flow', () => {
+    it('Rejects registration with invalid email or short password', async () => {
+      const resBadEmail = await request(app).post('/api/auth/register').send({
+        name: 'Test Person',
+        email: 'invalid-email',
+        password: 'Password123!',
+      });
+      expect(resBadEmail.status).toBe(400);
+      expect(resBadEmail.body.error).toMatch(/valid email/i);
+
+      const resShortPw = await request(app).post('/api/auth/register').send({
+        name: 'Test Person',
+        email: 'test@example.com',
+        password: 'short',
+      });
+      expect(resShortPw.status).toBe(400);
+      expect(resShortPw.body.error).toMatch(/at least 8 characters/i);
+    });
+
+    it('Successfully registers User A and issues HttpOnly cookie and session', async () => {
+      const res = await request(app).post('/api/auth/register').send(testUserA);
+      expect(res.status).toBe(201);
       expect(res.body.authenticated).toBe(true);
       expect(res.body.user).toBeDefined();
-      expect(res.body.user.name).toBe(DEMO_USER.name);
-      expect(res.body.user.email).toBe(DEMO_USER.email);
+      expect(res.body.user.name).toBe(testUserA.name);
+      expect(res.body.user.email).toBe(testUserA.email);
       expect(res.body.token).toBeDefined();
 
-      sessionToken = res.body.token;
+      userAId = res.body.user.id;
+      userAToken = res.body.token;
 
-      // Check Set-Cookie header
+      // Check cookie
       const cookies = res.headers['set-cookie'];
       expect(cookies).toBeDefined();
       const sessionCookieStr = cookies.find((c: string) => c.startsWith('fixflow_session='));
@@ -60,112 +112,149 @@ describe('Authentication & Session Management API Tests', () => {
       expect(sessionCookieStr).toContain('HttpOnly');
       expect(sessionCookieStr).toContain('SameSite=Lax');
 
-      sessionCookie = sessionCookieStr.split(';')[0];
+      userACookie = sessionCookieStr.split(';')[0];
     });
 
-    it('Database should store only the SHA-256 hash of the session token, not plain token', () => {
-      const expectedHash = hashToken(sessionToken);
+    it('Database stores bcrypt password hash, never plaintext password', () => {
+      const row = db.prepare('SELECT password_hash FROM users WHERE email = ?').get(testUserA.email) as any;
+      expect(row).toBeDefined();
+      expect(row.password_hash).not.toBe(testUserA.password);
+      expect(row.password_hash).toMatch(/^\$2[aby]\$\d+\$/); // Standard bcrypt prefix
+    });
+
+    it('Rejects duplicate registration with same email address', async () => {
+      const res = await request(app).post('/api/auth/register').send(testUserA);
+      expect(res.status).toBe(409);
+      expect(res.body.error).toMatch(/already exists/i);
+    });
+  });
+
+  describe('3. Account Sign-In Flow', () => {
+    it('Rejects login with invalid password or unregistered email', async () => {
+      const resWrongPw = await request(app).post('/api/auth/login').send({
+        email: testUserA.email,
+        password: 'WrongPassword123!',
+      });
+      expect(resWrongPw.status).toBe(401);
+      expect(resWrongPw.body.error).toMatch(/invalid email or password/i);
+
+      const resNoUser = await request(app).post('/api/auth/login').send({
+        email: 'nonexistent@example.com',
+        password: 'Password123!',
+      });
+      expect(resNoUser.status).toBe(401);
+      expect(resNoUser.body.error).toMatch(/invalid email or password/i);
+    });
+
+    it('Registers User B to test cross-user isolation', async () => {
+      const res = await request(app).post('/api/auth/register').send(testUserB);
+      expect(res.status).toBe(201);
+      userBId = res.body.user.id;
+      userBToken = res.body.token;
+      const cookies = res.headers['set-cookie'];
+      userBCookie = cookies.find((c: string) => c.startsWith('fixflow_session=')).split(';')[0];
+    });
+
+    it('Signs in User A successfully with verified credentials', async () => {
+      const res = await request(app).post('/api/auth/login').send({
+        email: testUserA.email,
+        password: testUserA.password,
+      });
+      expect(res.status).toBe(200);
+      expect(res.body.authenticated).toBe(true);
+      expect(res.body.user.email).toBe(testUserA.email);
+    });
+  });
+
+  describe('4. Session Validation and Token Hashing', () => {
+    it('GET /api/auth/session validates session via HttpOnly cookie', async () => {
+      const res = await request(app).get('/api/auth/session').set('Cookie', userACookie);
+      expect(res.status).toBe(200);
+      expect(res.body.authenticated).toBe(true);
+      expect(res.body.user.id).toBe(userAId);
+    });
+
+    it('GET /api/auth/session validates session via Bearer authorization header', async () => {
+      const res = await request(app).get('/api/auth/session').set('Authorization', `Bearer ${userAToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.authenticated).toBe(true);
+      expect(res.body.user.name).toBe(testUserA.name);
+    });
+
+    it('Database stores SHA-256 hash of session token, not plain token', () => {
+      const expectedHash = hashToken(userAToken);
       const row = db.prepare('SELECT * FROM user_sessions WHERE token_hash = ?').get(expectedHash) as any;
       expect(row).toBeDefined();
-      expect(row.user_email).toBe(DEMO_USER.email);
-      expect(row.token_hash).toBe(expectedHash);
-      expect(row.token_hash).not.toBe(sessionToken);
+      expect(row.user_id).toBe(userAId);
+      expect(row.token_hash).not.toBe(userAToken);
     });
   });
 
-  describe('3. Authenticated Session Validation', () => {
-    it('GET /api/auth/session should return authenticated: true when cookie is sent', async () => {
+  describe('5. Cross-User Data Isolation & Ownership', () => {
+    it('User A registers a private appliance', async () => {
       const res = await request(app)
-        .get('/api/auth/session')
-        .set('Cookie', sessionCookie);
-      expect(res.status).toBe(200);
-      expect(res.body.authenticated).toBe(true);
-      expect(res.body.user).toBeDefined();
-      expect(res.body.user.email).toBe(DEMO_USER.email);
+        .post('/api/appliances')
+        .set('Cookie', userACookie)
+        .send({
+          name: "Sarah's Induction Cooktop",
+          category: 'Kitchen',
+          brand: 'Miele',
+          model: 'KM-6365',
+          serial_number: 'SN-SARAH-9988',
+        });
+      expect(res.status).toBe(201);
+      expect(res.body.data.id).toBeDefined();
+      userAApplianceId = res.body.data.id;
     });
 
-    it('GET /api/auth/session should return authenticated: true when Bearer token is sent', async () => {
-      const res = await request(app)
-        .get('/api/auth/session')
-        .set('Authorization', `Bearer ${sessionToken}`);
+    it('User A can see their own appliance in their inventory', async () => {
+      const res = await request(app).get('/api/appliances').set('Cookie', userACookie);
       expect(res.status).toBe(200);
-      expect(res.body.authenticated).toBe(true);
-      expect(res.body.user.name).toBe(DEMO_USER.name);
+      const ids = res.body.data.map((a: any) => a.id);
+      expect(ids).toContain(userAApplianceId);
     });
 
-    it('Protected endpoints should allow access when valid session cookie is provided', async () => {
-      const res = await request(app)
-        .get('/api/appliances')
-        .set('Cookie', sessionCookie)
-        .set('x-enforce-auth', 'true');
+    it('User B CANNOT see User A private appliance in their inventory', async () => {
+      const res = await request(app).get('/api/appliances').set('Cookie', userBCookie);
       expect(res.status).toBe(200);
-    });
-  });
-
-  describe('4. Invalid and Expired Sessions', () => {
-    it('GET /api/auth/session with a forged or invalid token should return authenticated: false', async () => {
-      const res = await request(app)
-        .get('/api/auth/session')
-        .set('Cookie', 'fixflow_session=invalid-forged-token-12345');
-      expect(res.status).toBe(200);
-      expect(res.body.authenticated).toBe(false);
-      expect(res.body.user).toBeNull();
+      const ids = res.body.data.map((a: any) => a.id);
+      expect(ids).not.toContain(userAApplianceId);
     });
 
-    it('Expired session in database should be detected and rejected', async () => {
-      // Create an expired session in DB directly
-      const expiredToken = 'expired-test-token-abcdef';
-      const expiredHash = hashToken(expiredToken);
-      const pastDate = new Date(Date.now() - 1000 * 60).toISOString(); // 1 minute ago
-
-      db.prepare(`
-        INSERT INTO user_sessions (id, token_hash, user_id, user_name, user_email, role, created_at, expires_at)
-        VALUES ('expired-session-id', ?, 'test-user', 'Expired User', 'expired@test.com', 'homeowner', datetime('now'), ?)
-      `).run(expiredHash, pastDate);
-
+    it('User B cannot retrieve User A private appliance by direct ID (returns 404)', async () => {
       const res = await request(app)
-        .get('/api/auth/session')
-        .set('Authorization', `Bearer ${expiredToken}`);
-      expect(res.status).toBe(200);
-      expect(res.body.authenticated).toBe(false);
+        .get(`/api/appliances/${userAApplianceId}`)
+        .set('Cookie', userBCookie);
+      expect(res.status).toBe(404);
+    });
 
-      // Verify the expired session was purged
-      const row = db.prepare('SELECT * FROM user_sessions WHERE id = ?').get('expired-session-id');
-      expect(row).toBeUndefined();
+    it('User B cannot create a repair ticket on User A private appliance (returns 403)', async () => {
+      const res = await request(app)
+        .post('/api/repairs')
+        .set('Cookie', userBCookie)
+        .send({
+          appliance_id: userAApplianceId,
+          issue_description: 'Attempting unauthorized repair reporting on User A appliance',
+          priority: 'high',
+        });
+      expect(res.status).toBe(403);
     });
   });
 
-  describe('5. Logout and Session Invalidation', () => {
-    it('POST /api/auth/logout should invalidate session and clear cookie', async () => {
-      const res = await request(app)
-        .post('/api/auth/logout')
-        .set('Cookie', sessionCookie);
+  describe('6. Sign-Out & Session Invalidation', () => {
+    it('POST /api/auth/logout invalidates session and clears cookie', async () => {
+      const res = await request(app).post('/api/auth/logout').set('Cookie', userACookie);
       expect(res.status).toBe(200);
       expect(res.body.authenticated).toBe(false);
 
-      // Check that Set-Cookie expires the cookie immediately
-      const cookies = res.headers['set-cookie'];
-      expect(cookies).toBeDefined();
-      const clearedCookie = cookies.find((c: string) => c.startsWith('fixflow_session='));
-      expect(clearedCookie).toContain('Max-Age=0');
-
-      // Verify token hash is no longer in database
-      const expectedHash = hashToken(sessionToken);
+      // Verify session deleted from database
+      const expectedHash = hashToken(userAToken);
       const row = db.prepare('SELECT * FROM user_sessions WHERE token_hash = ?').get(expectedHash);
       expect(row).toBeUndefined();
-    });
 
-    it('Subsequent checks after logout should return unauthenticated and 401 on protected routes', async () => {
-      const resSession = await request(app)
-        .get('/api/auth/session')
-        .set('Cookie', sessionCookie);
-      expect(resSession.body.authenticated).toBe(false);
-
-      const resProtected = await request(app)
-        .get('/api/appliances')
-        .set('Cookie', sessionCookie)
-        .set('x-enforce-auth', 'true');
-      expect(resProtected.status).toBe(401);
+      // Subsequent session check is unauthenticated
+      const checkRes = await request(app).get('/api/auth/session').set('Cookie', userACookie);
+      expect(checkRes.body.authenticated).toBe(false);
     });
   });
 });

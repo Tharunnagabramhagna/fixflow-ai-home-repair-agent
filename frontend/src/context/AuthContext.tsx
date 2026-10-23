@@ -1,14 +1,18 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { api } from '../api/client';
-import type { AuthUser, AuthStatus } from '../types';
+import type { AuthUser, AuthStatus, LoginCredentials, RegisterCredentials } from '../types';
 
 interface AuthContextType {
   status: AuthStatus;
   user: AuthUser | null;
+  isGuest: boolean;
   error: string | null;
-  loginDemo: () => Promise<void>;
+  login: (credentials: LoginCredentials) => Promise<void>;
+  register: (credentials: RegisterCredentials) => Promise<void>;
+  continueAsGuest: () => void;
   logout: () => Promise<void>;
   refreshSession: () => Promise<void>;
+  clearError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,15 +29,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (res.authenticated && res.user) {
         setUser(res.user);
         setStatus('authenticated');
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('fixflow_guest');
+        }
       } else {
         setUser(null);
-        setStatus('unauthenticated');
+        const wasGuest = typeof window !== 'undefined' && sessionStorage.getItem('fixflow_guest') === 'true';
+        setStatus(wasGuest ? 'guest' : 'unauthenticated');
       }
     } catch (err: any) {
       console.warn('[FixFlow Auth] Session verification error:', err.message);
-      setError(err.message || 'Failed to verify session status with backend server.');
+      setError(err.message || 'Unable to connect to the FixFlow authentication service.');
       setUser(null);
-      setStatus('error');
+      const wasGuest = typeof window !== 'undefined' && sessionStorage.getItem('fixflow_guest') === 'true';
+      setStatus(wasGuest ? 'guest' : 'error');
     }
   }, []);
 
@@ -41,23 +50,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshSession();
   }, [refreshSession]);
 
-  const loginDemo = async () => {
+  const login = async (credentials: LoginCredentials) => {
     try {
       setStatus('loading');
       setError(null);
-      const res = await api.loginDemo();
+      const res = await api.login(credentials);
       if (res.authenticated && res.user) {
         setUser(res.user);
         setStatus('authenticated');
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('fixflow_guest');
+        }
       } else {
-        throw new Error('Failed to create demo session');
+        throw new Error('Sign-in failed. Please verify your credentials.');
       }
     } catch (err: any) {
-      console.error('[FixFlow Auth] Demo login error:', err);
-      setError(err.message || 'Failed to initiate demo session.');
+      setError(err.message || 'Invalid email or password.');
+      setUser(null);
       setStatus('unauthenticated');
       throw err;
     }
+  };
+
+  const register = async (credentials: RegisterCredentials) => {
+    try {
+      setStatus('loading');
+      setError(null);
+      const res = await api.register(credentials);
+      if (res.authenticated && res.user) {
+        setUser(res.user);
+        setStatus('authenticated');
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('fixflow_guest');
+        }
+      } else {
+        throw new Error('Registration could not be completed.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Registration failed.');
+      setUser(null);
+      setStatus('unauthenticated');
+      throw err;
+    }
+  };
+
+  const continueAsGuest = () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('fixflow_guest', 'true');
+    }
+    setUser(null);
+    setStatus('guest');
+    setError(null);
   };
 
   const logout = async () => {
@@ -66,20 +109,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.warn('[FixFlow Auth] Logout error (proceeding to clear local state):', err);
     } finally {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('fixflow_guest');
+      }
       setUser(null);
       setStatus('unauthenticated');
+      setError(null);
     }
   };
+
+  const clearError = () => setError(null);
+
+  const isGuest = status === 'guest';
 
   return (
     <AuthContext.Provider
       value={{
         status,
         user,
+        isGuest,
         error,
-        loginDemo,
+        login,
+        register,
+        continueAsGuest,
         logout,
         refreshSession,
+        clearError,
       }}
     >
       {children}

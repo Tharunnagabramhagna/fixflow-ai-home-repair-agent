@@ -18,10 +18,28 @@ import { useWindowWidth } from './hooks/useWindowWidth';
 import { FixFlowLogo } from './components/brand/FixFlowLogo';
 import { api } from './api/client';
 import type { Appliance, RepairCase, DashboardSummary } from './types';
-import { CheckCircle2, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
+import {
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  Compass,
+  Sparkles,
+  ShieldAlert,
+  UserPlus,
+  LogIn,
+  X,
+} from 'lucide-react';
 
 function FixFlowMain() {
-  const { status: authStatus, user, error: authError, logout, refreshSession } = useAuth();
+  const {
+    status: authStatus,
+    user,
+    error: authError,
+    logout,
+    refreshSession,
+    continueAsGuest,
+    isGuest,
+  } = useAuth();
   const { isWideDesktop } = useWindowWidth();
 
   // Navigation / View mode: 'landing' vs 'dashboard'
@@ -35,9 +53,7 @@ function FixFlowMain() {
   const [currentTab, setCurrentTab] = useState('overview');
 
   // Sidebar responsive states
-  // On wide desktop (>=1440): in-flow sidebar, expanded by default
   const [desktopCollapsed, setDesktopCollapsed] = useState(false);
-  // On laptop (1024-1439), tablet, mobile: drawer, closed by default
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Data states
@@ -53,15 +69,29 @@ function FixFlowMain() {
   const [reportDefaultAppliance, setReportDefaultAppliance] = useState<Appliance | null>(null);
   const [registerModalOpen, setRegisterModalOpen] = useState(false);
   const [statusModalCase, setStatusModalCase] = useState<RepairCase | null>(null);
-  const [authGateSignInOpen, setAuthGateSignInOpen] = useState(false);
+  
+  // Auth Modal states
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authModalInitialMode, setAuthModalInitialMode] = useState<'signin' | 'register'>('signin');
+
+  // Guest action prompt modal (when a guest clicks an account-only action)
+  const [guestPrompt, setGuestPrompt] = useState<{
+    title: string;
+    description: string;
+  } | null>(null);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
   };
 
+  const openAuthModal = (mode: 'signin' | 'register' = 'signin') => {
+    setAuthModalInitialMode(mode);
+    setAuthModalOpen(true);
+  };
+
   const loadAllData = useCallback(async () => {
-    if (authStatus !== 'authenticated') return;
+    if (authStatus !== 'authenticated' && authStatus !== 'guest') return;
     try {
       setLoadingData(true);
       const [sumData, appsData, casesData] = await Promise.all([
@@ -80,9 +110,9 @@ function FixFlowMain() {
     }
   }, [authStatus]);
 
-  // Load data whenever auth status becomes authenticated
+  // Load data whenever auth status becomes authenticated or guest
   useEffect(() => {
-    if (authStatus === 'authenticated') {
+    if (authStatus === 'authenticated' || authStatus === 'guest') {
       loadAllData();
     }
   }, [authStatus, loadAllData]);
@@ -116,15 +146,23 @@ function FixFlowMain() {
   const handleSignOut = async () => {
     try {
       await logout();
-      showToast('Signed out of FixFlow household session');
+      showToast('Signed out of FixFlow');
       navigateToLanding();
     } catch (err: any) {
       showToast(err.message || 'Sign out failed', 'error');
     }
   };
 
-  // Handlers
+  // Safe action triggers with guest intercept
   const handleOpenReportModal = (applianceOrText?: Appliance | string) => {
+    if (isGuest) {
+      setGuestPrompt({
+        title: 'Create an Account to Report Repairs',
+        description:
+          'You are currently exploring FixFlow as a guest. To file active repair tickets, diagnose issues with AI triage, and track technician progress for your household, please create a free account.',
+      });
+      return;
+    }
     if (typeof applianceOrText === 'string') {
       setReportDefaultAppliance(null);
     } else if (applianceOrText) {
@@ -133,6 +171,30 @@ function FixFlowMain() {
       setReportDefaultAppliance(null);
     }
     setReportModalOpen(true);
+  };
+
+  const handleOpenRegisterModal = () => {
+    if (isGuest) {
+      setGuestPrompt({
+        title: 'Create an Account to Register Appliances',
+        description:
+          'You are currently exploring FixFlow in Guest Mode with sample appliances. Creating a free account lets you register your household equipment, store digital warranties, and generate permanent repair passports.',
+      });
+      return;
+    }
+    setRegisterModalOpen(true);
+  };
+
+  const handleOpenStatusModal = (c: RepairCase) => {
+    if (isGuest) {
+      setGuestPrompt({
+        title: 'Create an Account to Update Repair Status',
+        description:
+          'Sample repair cases cannot be modified in Guest Mode. Please sign in or register to manage your household repair workflow.',
+      });
+      return;
+    }
+    setStatusModalCase(c);
   };
 
   const handleCaseUpdated = () => {
@@ -184,7 +246,7 @@ function FixFlowMain() {
               navigateToDashboard('appliances');
               setRegisterModalOpen(true);
             } else {
-              setAuthGateSignInOpen(true);
+              openAuthModal('register');
             }
           }}
           onReportProblem={() => {
@@ -192,7 +254,7 @@ function FixFlowMain() {
               navigateToDashboard('repairs');
               handleOpenReportModal();
             } else {
-              setAuthGateSignInOpen(true);
+              openAuthModal('signin');
             }
           }}
           onOpenPassport={(appliance) => setPassportAppliance(appliance)}
@@ -211,35 +273,58 @@ function FixFlowMain() {
             </div>
           )}
 
-          {/* State 2: Unauthenticated Access Gate */}
+          {/* State 2: Unauthenticated Access Gate (When user opens #/app directly without auth) */}
           {authStatus === 'unauthenticated' && (
-            <div className="min-h-screen bg-[#F6F4EE] flex flex-col items-center justify-center p-6 text-[#24342F]">
-              <div className="max-w-md w-full bg-white rounded-3xl p-8 border border-[#E6E4DA] shadow-xl text-center space-y-5 animate-in fade-in zoom-in-95">
+            <div className="min-h-screen bg-[#F6F4EE] flex flex-col items-center justify-center p-6 text-[#24342F] relative overflow-hidden">
+              {/* Subtle ambient lighting */}
+              <div className="absolute top-10 left-1/2 -translate-x-1/2 w-96 h-96 bg-[#183B32]/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute bottom-10 right-1/4 w-80 h-80 bg-[#B49A68]/15 rounded-full blur-3xl pointer-events-none" />
+
+              <div className="max-w-md w-full bg-white/95 backdrop-blur-xl rounded-3xl p-8 border border-[#E6E4DA] shadow-[0_20px_50px_rgba(24,59,50,0.12)] text-center space-y-5 animate-in fade-in zoom-in-95 relative z-10">
                 <div className="flex justify-center">
                   <FixFlowLogo size="md" />
                 </div>
                 <div>
                   <h2 className="font-editorial text-2xl text-[#183B32] font-normal">
-                    Authentication Required
+                    FixFlow Homeowner Workspace
                   </h2>
                   <p className="text-xs text-[#687871] mt-2 leading-relaxed">
-                    You are attempting to access the private FixFlow homeowner dashboard. Please sign in to verify your household session.
+                    Sign in to manage your registered household appliances, or explore FixFlow as a guest without creating an account.
                   </p>
                 </div>
-                <div className="p-3.5 bg-[#F6F4EE] rounded-2xl text-xs text-left space-y-1.5 border border-[#E6E4DA]/60">
-                  <p className="font-semibold text-[#183B32]">Single-Household Prototype:</p>
-                  <p className="text-[#687871]">
-                    Enter as the verified demo homeowner (Alex Carter) to inspect digital repair passports and active cases.
-                  </p>
+
+                <div className="p-3.5 bg-[#F6F4EE]/80 rounded-2xl text-xs text-left space-y-1.5 border border-[#E6E4DA]/60">
+                  <div className="flex items-center gap-2 text-[#183B32] font-semibold">
+                    <Sparkles className="w-3.5 h-3.5 text-[#B49A68]" />
+                    <span>Explore or Manage:</span>
+                  </div>
+                  <ul className="text-[#687871] space-y-1 pl-5 list-disc">
+                    <li>Digital Repair Passports and appliance specs</li>
+                    <li>Active repair cases and lifecycle timeline</li>
+                    <li>Full guest exploration mode with sample data</li>
+                  </ul>
                 </div>
-                <div className="space-y-2 pt-2">
+
+                <div className="space-y-2.5 pt-1">
                   <button
-                    onClick={() => setAuthGateSignInOpen(true)}
+                    onClick={() => openAuthModal('signin')}
                     className="w-full py-3 px-4 rounded-full bg-[#183B32] hover:bg-[#122C25] text-white text-sm font-semibold transition-all shadow-sm flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-[#183B32]/40"
                   >
-                    <span>Sign In as Demo Homeowner</span>
-                    <ArrowRight className="w-4 h-4 text-[#B69A68]" />
+                    <LogIn className="w-4 h-4 text-[#B69A68]" />
+                    <span>Sign In to Account</span>
                   </button>
+
+                  <button
+                    onClick={() => {
+                      continueAsGuest();
+                      navigateToDashboard('overview');
+                    }}
+                    className="w-full py-3 px-4 rounded-full bg-white hover:bg-[#F6F4EE] border border-[#CBDBCB] text-[#183B32] text-sm font-semibold transition-all flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-[#183B32]/30"
+                  >
+                    <Compass className="w-4 h-4 text-[#2D6A4F]" />
+                    <span>Continue as Guest</span>
+                  </button>
+
                   <button
                     onClick={navigateToLanding}
                     className="w-full py-2.5 text-xs font-medium text-[#7E9088] hover:text-[#183B32] transition-colors focus:outline-none"
@@ -258,7 +343,8 @@ function FixFlowMain() {
                 <AlertCircle className="w-10 h-10 text-red-600 mx-auto" />
                 <h2 className="text-lg font-bold text-[#183B32]">Connection Error</h2>
                 <p className="text-xs text-[#687871] leading-relaxed">
-                  {authError || 'Failed to verify session status with the FixFlow backend. Please ensure the backend server is running.'}
+                  {authError ||
+                    'Failed to verify session status with the FixFlow backend. Please ensure the backend server is running.'}
                 </p>
                 <div className="flex gap-2 justify-center pt-2">
                   <button
@@ -278,8 +364,8 @@ function FixFlowMain() {
             </div>
           )}
 
-          {/* State 4: Authenticated Dashboard */}
-          {authStatus === 'authenticated' && (
+          {/* State 4: Active Dashboard (Authenticated or Guest Workspace) */}
+          {(authStatus === 'authenticated' || authStatus === 'guest') && (
             <div className="flex min-h-screen bg-[#F6F4EE] text-[#24342F] font-sans">
               {/* Responsive Collapsible Sidebar */}
               <Sidebar
@@ -295,6 +381,7 @@ function FixFlowMain() {
                 onBackToLanding={navigateToLanding}
                 user={user}
                 onSignOut={handleSignOut}
+                onOpenAuthModal={() => openAuthModal('signin')}
               />
 
               {/* Main Content Area */}
@@ -305,18 +392,48 @@ function FixFlowMain() {
                   isWideDesktop={isWideDesktop}
                   desktopCollapsed={desktopCollapsed}
                   onOpenReportModal={() => handleOpenReportModal()}
-                  onOpenRegisterModal={() => setRegisterModalOpen(true)}
+                  onOpenRegisterModal={handleOpenRegisterModal}
                   appliances={appliances}
                   repairCases={repairCases}
                   onSelectAppliance={(a) => setPassportAppliance(a)}
                   onSelectCase={(c) => {
                     setCurrentTab('repairs');
-                    setStatusModalCase(c);
+                    handleOpenStatusModal(c);
                   }}
                   onOpenSettings={() => setCurrentTab('settings')}
                   user={user}
                   onSignOut={handleSignOut}
+                  onOpenAuthModal={() => openAuthModal('signin')}
                 />
+
+                {/* Guest Exploration Workspace Banner */}
+                {isGuest && (
+                  <div className="bg-[#183B32]/5 border-b border-[#183B32]/10 px-4 sm:px-6 py-2.5 backdrop-blur-xs">
+                    <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs">
+                      <div className="flex items-center gap-2 text-[#183B32]">
+                        <Compass className="w-4 h-4 text-[#2D6A4F] shrink-0" />
+                        <span>
+                          <strong>Guest Mode:</strong> You are exploring FixFlow sample appliances and passports. Changes are not saved permanently.
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                        <button
+                          onClick={() => openAuthModal('register')}
+                          className="px-3 py-1 rounded-full bg-[#183B32] hover:bg-[#122C25] text-white text-xs font-semibold transition-colors flex items-center gap-1.5"
+                        >
+                          <UserPlus className="w-3 h-3 text-[#B49A68]" />
+                          <span>Create Free Account</span>
+                        </button>
+                        <button
+                          onClick={() => openAuthModal('signin')}
+                          className="px-3 py-1 rounded-full border border-[#CBDBCB] hover:bg-white text-[#183B32] text-xs font-semibold transition-colors"
+                        >
+                          Sign In
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
                   {currentTab === 'overview' && (
@@ -328,7 +445,7 @@ function FixFlowMain() {
                       onNavigateTab={setCurrentTab}
                       onViewPassport={(a) => setPassportAppliance(a)}
                       onReportIssue={handleOpenReportModal}
-                      onRegisterAppliance={() => setRegisterModalOpen(true)}
+                      onRegisterAppliance={handleOpenRegisterModal}
                     />
                   )}
 
@@ -337,7 +454,7 @@ function FixFlowMain() {
                       appliances={appliances}
                       repairCases={repairCases}
                       loading={loadingData}
-                      onOpenRegisterModal={() => setRegisterModalOpen(true)}
+                      onOpenRegisterModal={handleOpenRegisterModal}
                       onViewPassport={(a) => setPassportAppliance(a)}
                       onReportIssue={handleOpenReportModal}
                     />
@@ -349,7 +466,7 @@ function FixFlowMain() {
                       appliances={appliances}
                       loading={loadingData}
                       onOpenReportModal={() => handleOpenReportModal()}
-                      onUpdateStatus={(c) => setStatusModalCase(c)}
+                      onUpdateStatus={(c) => handleOpenStatusModal(c)}
                       onViewPassport={(a) => setPassportAppliance(a)}
                     />
                   )}
@@ -361,7 +478,12 @@ function FixFlowMain() {
                     />
                   )}
 
-                  {currentTab === 'settings' && <SettingsView onNavigateTab={setCurrentTab} />}
+                  {currentTab === 'settings' && (
+                    <SettingsView
+                      onNavigateTab={setCurrentTab}
+                      onOpenAuthModal={() => openAuthModal('register')}
+                    />
+                  )}
                   {currentTab === 'health' && <SystemHealthView />}
                 </main>
               </div>
@@ -402,10 +524,69 @@ function FixFlowMain() {
         />
       )}
 
-      {/* Auth Gate Sign In Modal */}
+      {/* Guest Mode Action Prompt Modal */}
+      {guestPrompt && (
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="fixed inset-0 bg-[#0A1612]/60 backdrop-blur-md transition-opacity"
+            onClick={() => setGuestPrompt(null)}
+            aria-hidden="true"
+          />
+          <div className="relative w-full max-w-md bg-white/95 backdrop-blur-xl rounded-3xl p-6 sm:p-8 shadow-2xl border border-white/80 text-[#24342F] z-10 animate-in fade-in zoom-in-95">
+            <button
+              onClick={() => setGuestPrompt(null)}
+              className="absolute top-5 right-5 p-2 rounded-full text-[#687871] hover:text-[#183B32] hover:bg-[#EAE5D9]/60 transition-colors"
+              aria-label="Close dialog"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="w-12 h-12 rounded-2xl bg-[#B49A68]/15 border border-[#B49A68]/30 flex items-center justify-center text-[#B49A68] mb-4">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+            <h3 className="text-xl font-bold text-[#183B32]">{guestPrompt.title}</h3>
+            <p className="text-xs text-[#687871] mt-2 leading-relaxed">
+              {guestPrompt.description}
+            </p>
+            <div className="mt-6 space-y-2">
+              <button
+                onClick={() => {
+                  setGuestPrompt(null);
+                  openAuthModal('register');
+                }}
+                className="w-full py-3 px-4 rounded-full bg-[#183B32] hover:bg-[#122C25] text-white text-sm font-semibold transition-all shadow-sm flex items-center justify-center gap-2"
+              >
+                <UserPlus className="w-4 h-4 text-[#B49A68]" />
+                <span>Create Free Account</span>
+              </button>
+              <button
+                onClick={() => {
+                  setGuestPrompt(null);
+                  openAuthModal('signin');
+                }}
+                className="w-full py-2.5 px-4 rounded-full border border-[#CBDBCB] text-[#183B32] text-xs font-semibold hover:bg-[#F6F4EE] transition-colors"
+              >
+                Sign In to Existing Account
+              </button>
+              <button
+                onClick={() => setGuestPrompt(null)}
+                className="w-full py-2 text-xs font-medium text-[#7E9088] hover:text-[#183B32] transition-colors"
+              >
+                Continue Exploring as Guest
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Auth Modal (Sign In & Register) */}
       <SignInModal
-        isOpen={authGateSignInOpen}
-        onClose={() => setAuthGateSignInOpen(false)}
+        isOpen={authModalOpen}
+        initialMode={authModalInitialMode}
+        onClose={() => setAuthModalOpen(false)}
         onEnterDashboard={() => navigateToDashboard('overview')}
       />
     </div>

@@ -27,7 +27,8 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
   onOpenPassport,
 }) => {
   const [signInOpen, setSignInOpen] = useState(false);
-  const { status } = useAuth();
+  const [authMode, setAuthMode] = useState<'signin' | 'register'>('signin');
+  const { status, continueAsGuest } = useAuth();
   const isAuthenticated = status === 'authenticated';
 
   // Default sample appliance for "View Appliance Record" CTA in Hero (Samsung Refrigerator or first appliance)
@@ -58,18 +59,30 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
     if (el) el.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleRegisterOrSignIn = () => {
+  const handleOpenRegister = () => {
     if (isAuthenticated) {
       onRegisterAppliance();
     } else {
+      setAuthMode('register');
       setSignInOpen(true);
     }
+  };
+
+  const handleOpenSignIn = () => {
+    setAuthMode('signin');
+    setSignInOpen(true);
+  };
+
+  const handleGuestExplore = () => {
+    continueAsGuest();
+    onLaunchDashboard();
   };
 
   const handleReportOrSignIn = () => {
     if (isAuthenticated) {
       onReportProblem();
     } else {
+      setAuthMode('signin');
       setSignInOpen(true);
     }
   };
@@ -78,16 +91,17 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
     <div className="min-h-screen bg-[#F6F4EE] text-[#24342F] flex flex-col font-sans selection:bg-[#DDE7DD] selection:text-[#183B32]">
       {/* Editorial Navigation Header */}
       <LandingHeader
-        onRegisterClick={handleRegisterOrSignIn}
-        onSignInClick={() => setSignInOpen(true)}
+        onRegisterClick={handleOpenRegister}
+        onSignInClick={handleOpenSignIn}
         onOpenDashboard={onLaunchDashboard}
+        onGuestClick={handleGuestExplore}
       />
 
       {/* Main Public Website Sections */}
       <main className="flex-1">
         {/* Hero Section */}
         <LandingHero
-          onRegisterClick={handleRegisterOrSignIn}
+          onRegisterClick={handleOpenRegister}
           onExploreClick={handleExploreClick}
           onViewSamplePassport={handleHeroViewSamplePassport}
         />
@@ -97,7 +111,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
 
         {/* Section B: How It Works (3 Steps) */}
         <LandingHowItWorks
-          onRegisterClick={handleRegisterOrSignIn}
+          onRegisterClick={handleOpenRegister}
           onReportClick={handleReportOrSignIn}
         />
 
@@ -113,20 +127,21 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
 
         {/* Section E: Final Call to Action */}
         <LandingCTA
-          onRegisterClick={handleRegisterOrSignIn}
+          onRegisterClick={handleOpenRegister}
           onExploreClick={handleExploreClick}
         />
       </main>
 
       {/* Footer */}
       <LandingFooter
-        onRegisterClick={handleRegisterOrSignIn}
-        onSignInClick={() => setSignInOpen(true)}
+        onRegisterClick={handleOpenRegister}
+        onSignInClick={handleOpenSignIn}
       />
 
-      {/* Sign In / Local Environment Modal */}
+      {/* Floating Glassmorphism Authentication Modal */}
       <SignInModal
         isOpen={signInOpen}
+        initialMode={authMode}
         onClose={() => setSignInOpen(false)}
         onEnterDashboard={onLaunchDashboard}
       />

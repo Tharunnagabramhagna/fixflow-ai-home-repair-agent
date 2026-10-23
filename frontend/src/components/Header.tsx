@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Menu, Search, Bell, Refrigerator, Wrench, X, LogOut, Settings as SettingsIcon, ShieldCheck } from 'lucide-react';
+import { Menu, Search, Bell, Refrigerator, Wrench, X, LogOut, Settings as SettingsIcon, ShieldCheck, Compass, LogIn } from 'lucide-react';
 import type { Appliance, RepairCase, AuthUser } from '../types';
 
 interface HeaderProps {
@@ -17,6 +17,7 @@ interface HeaderProps {
   onOpenSettings?: () => void;
   user?: AuthUser | null;
   onSignOut?: () => void;
+  onOpenAuthModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -32,6 +33,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSettings,
   user,
   onSignOut,
+  onOpenAuthModal,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showNotificationPopup, setShowNotificationPopup] = useState(false);
@@ -40,9 +42,12 @@ export const Header: React.FC<HeaderProps> = ({
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  const userName = user?.name || 'Alex Carter';
-  const userEmail = user?.email || 'alex.carter@gmail.com';
-  const userInitial = userName.split(' ').map((n) => n[0]).join('').slice(0, 2) || 'AC';
+  const isGuest = !user;
+  const userName = user?.name || 'Guest Explorer';
+  const userEmail = user?.email || 'Sample Workspace';
+  const userInitial = user
+    ? user.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() || 'U'
+    : 'G';
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -90,8 +95,6 @@ export const Header: React.FC<HeaderProps> = ({
     : [];
 
   const hasResults = matchedAppliances.length > 0 || matchedCases.length > 0;
-
-  // Show hamburger when sidebar is not expanded in-flow (e.g. laptop, tablet, mobile, or collapsed desktop)
   const showHamburger = !isWideDesktop || desktopCollapsed;
 
   return (
@@ -221,8 +224,19 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
 
-        {/* Right: Notification Bell & User Account Menu */}
+        {/* Right: Guest Indicator / Notifications / User Account Menu */}
         <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+          {/* Guest Sign-In / Register Action */}
+          {isGuest && onOpenAuthModal && (
+            <button
+              onClick={onOpenAuthModal}
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#183B32] text-white text-xs font-semibold hover:bg-[#122C25] transition-all shadow-2xs"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Sign In / Register</span>
+            </button>
+          )}
+
           {/* Notification Bell */}
           <div className="relative">
             <button
@@ -253,11 +267,15 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </div>
 
-          {/* User Profile Dropdown Menu */}
+          {/* User Profile / Guest Dropdown Menu */}
           <div ref={userMenuRef} className="relative">
             <button
               onClick={() => setShowUserDropdown(!showUserDropdown)}
-              className="w-8 h-8 rounded-full bg-[#DDE7DD] text-[#183B32] font-bold text-xs flex items-center justify-center border border-[#CBDBCB] shadow-2xs cursor-pointer select-none hover:ring-2 hover:ring-[#183B32]/30 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
+              className={`w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center border shadow-2xs cursor-pointer select-none transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32] ${
+                isGuest
+                  ? 'bg-[#F6F4EE] text-[#183B32] border-[#CBDBCB] hover:ring-2 hover:ring-[#183B32]/30'
+                  : 'bg-[#DDE7DD] text-[#183B32] border-[#CBDBCB] hover:ring-2 hover:ring-[#183B32]/30'
+              }`}
               title={`${userName} — Account Menu`}
               aria-label="User account menu"
               aria-expanded={showUserDropdown}
@@ -271,14 +289,34 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className="px-1.5 pb-2 border-b border-[#E6E4DA]">
                   <p className="font-bold text-[#183B32] text-sm">{userName}</p>
                   <p className="text-[11px] text-[#8A9A92] truncate">{userEmail}</p>
-                  <div className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#DDE7DD] text-[#183B32]">
-                    <ShieldCheck className="w-3 h-3 text-[#183B32]" />
-                    <span>Single-Household Demo Session</span>
-                  </div>
+                  {isGuest ? (
+                    <div className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#F6F4EE] text-[#687871] border border-[#E6E4DA]">
+                      <Compass className="w-3 h-3 text-[#183B32]" />
+                      <span>Guest Workspace (Sample Mode)</span>
+                    </div>
+                  ) : (
+                    <div className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#DDE7DD] text-[#183B32]">
+                      <ShieldCheck className="w-3 h-3 text-[#183B32]" />
+                      <span>Authenticated Homeowner</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Actions */}
                 <div className="space-y-1">
+                  {isGuest && onOpenAuthModal && (
+                    <button
+                      onClick={() => {
+                        setShowUserDropdown(false);
+                        onOpenAuthModal();
+                      }}
+                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left bg-[#183B32] text-white hover:bg-[#122C25] transition-colors font-semibold"
+                    >
+                      <LogIn className="w-4 h-4 text-[#B69A68]" />
+                      <span>Create Account / Sign In</span>
+                    </button>
+                  )}
+
                   {onOpenSettings && (
                     <button
                       onClick={() => {
@@ -292,7 +330,7 @@ export const Header: React.FC<HeaderProps> = ({
                     </button>
                   )}
 
-                  {onSignOut && (
+                  {!isGuest && onSignOut && (
                     <button
                       onClick={() => {
                         setShowUserDropdown(false);
