@@ -65,8 +65,8 @@ export function getApplianceById(
     return appliance;
   }
 
-  // In test runs with isolated databases without user scoping, allow access
-  if (userId === null && process.env.NODE_ENV === 'test') {
+  // In test runs with isolated databases without user scoping, allow access only when ENFORCE_TEST_AUTH is not enabled
+  if (userId === null && process.env.NODE_ENV === 'test' && process.env.ENFORCE_TEST_AUTH !== 'true') {
     return appliance;
   }
 
@@ -112,7 +112,7 @@ export function createAppliance(
     now
   );
 
-  return getApplianceById(id, activeDb) as Appliance;
+  return getApplianceById(id, userId, activeDb) as Appliance;
 }
 
 export function getApplianceHistory(

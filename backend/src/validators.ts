@@ -27,6 +27,11 @@ export const updateRepairStatusSchema = z.object({
   appointment_notes: z.string().max(500).optional(),
 });
 
+export const addRepairNoteSchema = z.object({
+  note: z.string().trim().min(1, 'Note cannot be empty').max(2000, 'Note must not exceed 2000 characters'),
+});
+
 export type CreateApplianceInput = z.infer<typeof createApplianceSchema>;
 export type CreateRepairCaseInput = z.infer<typeof createRepairCaseSchema>;
 export type UpdateRepairStatusInput = z.infer<typeof updateRepairStatusSchema>;
+export type AddRepairNoteInput = z.infer<typeof addRepairNoteSchema>;

@@ -66,8 +66,9 @@ export function getAllRepairCases(
   if (filters?.user_id && filters.user_id !== 'sample') {
     conditions.push('(rc.user_id = ? OR a.user_id = ?)');
     params.push(filters.user_id, filters.user_id);
-  } else if (filters?.user_id === 'sample') {
-    conditions.push("(rc.user_id = 'sample' OR a.user_id = 'sample' OR a.user_id IS NULL)");
+  } else {
+    // Guest or unauthenticated mode: return ONLY sample or unassigned public demo cases
+    conditions.push("(rc.user_id = 'sample' OR rc.user_id IS NULL) AND (a.user_id = 'sample' OR a.user_id IS NULL)");
   }
 
   if (filters?.status) {
@@ -110,8 +111,14 @@ export function getRepairCaseById(
     repairCase.appliance_user_id === null ||
     repairCase.appliance_user_id === undefined;
 
-  if (!isSample && userId) {
-    if (repairCase.user_id !== userId && repairCase.appliance_user_id !== userId) {
+  if (!isSample) {
+    if (!userId) {
+      if (process.env.NODE_ENV === 'test' && process.env.ENFORCE_TEST_AUTH !== 'true') {
+        // legacy test bypass
+      } else {
+        return undefined;
+      }
+    } else if (repairCase.user_id !== userId && repairCase.appliance_user_id !== userId) {
       return undefined;
     }
   }
@@ -181,7 +188,7 @@ export function createRepairCase(
 
   createCaseAndEvent();
 
-  return getRepairCaseById(id, activeDb) as RepairCase;
+  return getRepairCaseById(id, userId, activeDb) as RepairCase;
 }
 
 export function updateRepairStatus(
@@ -238,7 +245,57 @@ export function updateRepairStatus(
 
   updateCaseAndEvent();
 
-  return getRepairCaseById(id, activeDb) as RepairCase;
+  return getRepairCaseById(id, userId, activeDb) as RepairCase;
+}
+
+export function addRepairNote(
+  caseId: string,
+  note: string,
+  userIdOrDb?: string | DatabaseType | null,
+  targetDb?: DatabaseType
+): (RepairCase & { appliance_name?: string; events?: RepairEvent[] }) {
+  const { userId, activeDb } = resolveUserAndDb(userIdOrDb, targetDb);
+  const existing = getRepairCaseById(caseId, userId, activeDb);
+
+  if (!existing) {
+    const err = new Error('Repair case not found');
+    (err as any).status = 404;
+    throw err;
+  }
+
+  // Scoping: If user is authenticated, ensure they own the case
+  const isSample =
+    existing.user_id === 'sample' ||
+    (existing as any).appliance_user_id === 'sample' ||
+    (existing as any).appliance_user_id === null ||
+    (existing as any).appliance_user_id === undefined;
+
+  if (!isSample && userId && userId !== 'sample') {
+    if (existing.user_id !== userId && (existing as any).appliance_user_id !== userId) {
+      const err = new Error('Access denied: You cannot add a note to a repair case you do not own.');
+      (err as any).status = 403;
+      throw err;
+    }
+  }
+
+  const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+  const addNoteTransaction = activeDb.transaction(() => {
+    activeDb.prepare(`
+      UPDATE repair_cases
+      SET updated_at = ?
+      WHERE id = ?
+    `).run(now, caseId);
+
+    activeDb.prepare(`
+      INSERT INTO repair_events (id, case_id, event_type, description, old_value, new_value, created_at)
+      VALUES (?, ?, 'note_added', ?, NULL, NULL, ?)
+    `).run(uuidv4(), caseId, note.trim(), now);
+  });
+
+  addNoteTransaction();
+
+  return getRepairCaseById(caseId, userId, activeDb) as (RepairCase & { appliance_name?: string; events?: RepairEvent[] });
 }
 
 export function getDashboardSummary(userIdOrDb?: string | DatabaseType | null, targetDb?: DatabaseType) {

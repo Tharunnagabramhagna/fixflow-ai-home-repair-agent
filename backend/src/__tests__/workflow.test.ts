@@ -8,6 +8,7 @@ import {
   updateRepairStatus,
   getRepairCaseById,
   getAllRepairCases,
+  addRepairNote,
 } from '../services/repairService';
 import { createAppliance } from '../services/applianceService';
 
@@ -238,6 +239,36 @@ describe('Production Repair Workflow Service Tests (Real Implementation)', () =>
         { status: 'diagnosed' },
         testDb
       );
+    }).toThrow(/Repair case not found/);
+  });
+
+  it('9. Successfully adds a diagnostic note to repair case and logs audit event', () => {
+    const created = createRepairCase(
+      {
+        appliance_id: testApplianceId,
+        issue_description: 'Ice maker stopped producing ice cubes.',
+        priority: 'medium',
+      },
+      testDb
+    );
+
+    const updated = addRepairNote(
+      created.id,
+      'Technician checked water inlet valve; solenoid coil resistance is normal.',
+      null,
+      testDb
+    );
+
+    expect(updated.id).toBe(created.id);
+    const events = testDb.prepare('SELECT * FROM repair_events WHERE case_id = ? ORDER BY created_at ASC').all(created.id) as any[];
+    expect(events.length).toBe(2);
+    expect(events[1].event_type).toBe('note_added');
+    expect(events[1].description).toContain('solenoid coil resistance');
+  });
+
+  it('10. Throws error when adding note to non-existent repair case', () => {
+    expect(() => {
+      addRepairNote('non-existent-case-id', 'Some note', null, testDb);
     }).toThrow(/Repair case not found/);
   });
 });

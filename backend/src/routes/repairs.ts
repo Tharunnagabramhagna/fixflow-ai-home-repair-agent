@@ -1,6 +1,6 @@
 import { Router, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
-import { createRepairCaseSchema, updateRepairStatusSchema } from '../validators';
+import { createRepairCaseSchema, updateRepairStatusSchema, addRepairNoteSchema } from '../validators';
 import * as repairService from '../services/repairService';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth';
 
@@ -86,6 +86,34 @@ router.patch('/:id/status', requireAuth, (req: AuthenticatedRequest, res: Respon
     }
     if (err.message && err.message.startsWith('Cannot transition')) {
       res.status(400).json({ error: err.message });
+      return;
+    }
+    next(err);
+  }
+});
+
+// POST /api/repairs/:id/notes — Add note/audit event to repair case (requires authentication)
+router.post('/:id/notes', requireAuth, (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const userId = req.user?.id || null;
+    const input = addRepairNoteSchema.parse(req.body);
+    const updated = repairService.addRepairNote(id, input.note, userId);
+    res.status(201).json({ data: updated });
+  } catch (err: any) {
+    if (err instanceof ZodError) {
+      res.status(400).json({
+        error: 'Validation failed',
+        details: (err.issues || []).map((e) => ({ path: e.path.join('.'), message: e.message })),
+      });
+      return;
+    }
+    if (err.status === 404 || err.message === 'Repair case not found') {
+      res.status(404).json({ error: 'Repair case not found' });
+      return;
+    }
+    if (err.status === 401 || err.status === 403) {
+      res.status(err.status).json({ error: err.message });
       return;
     }
     next(err);
