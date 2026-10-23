@@ -27,8 +27,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenDrawer,
   isDesktop,
   isWideDesktop = false,
-  desktopCollapsed = false,
-  onToggleDesktopCollapse,
+  desktopCollapsed: _desktopCollapsed = false,
+  onToggleDesktopCollapse: _onToggleDesktopCollapse,
   onSearch,
   appliances = [],
   repairCases = [],
@@ -104,35 +104,19 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="bg-white/90 backdrop-blur-md border-b border-[#E6E4DA] sticky top-0 z-20 px-4 sm:px-6 py-3">
       <div className="flex items-center justify-between gap-4 max-w-7xl mx-auto w-full">
-        {/* Left: Visible Sidebar Toggle Button (collapses in-flow rail on desktop, opens drawer on mobile) */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              if (isDesktopMode && onToggleDesktopCollapse) {
-                onToggleDesktopCollapse();
-              } else {
-                onOpenDrawer();
-              }
-            }}
-            className="p-2 rounded-xl text-[#687871] hover:text-[#183B32] hover:bg-[#F6F4EE] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
-            aria-label={
-              isDesktopMode
-                ? desktopCollapsed
-                  ? 'Expand sidebar navigation'
-                  : 'Collapse sidebar navigation'
-                : 'Open navigation drawer'
-            }
-            title={
-              isDesktopMode
-                ? desktopCollapsed
-                  ? 'Expand sidebar'
-                  : 'Collapse sidebar'
-                : 'Open Navigation'
-            }
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-        </div>
+        {/* Mobile / Tablet Menu Button (hidden on desktop where permanent sidebar is already present) */}
+        {!isDesktopMode && (
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={onOpenDrawer}
+              className="p-2 rounded-xl text-[#687871] hover:text-[#183B32] hover:bg-[#F6F4EE] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#183B32]"
+              aria-label="Open navigation drawer"
+              title="Open Navigation"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+          </div>
+        )}
 
         {/* Center: Global Search Bar with Live Result Dropdown */}
         <div ref={searchContainerRef} className="flex-1 max-w-xl mx-auto relative">
