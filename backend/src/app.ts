@@ -7,6 +7,7 @@ import dashboardRouter from './routes/dashboard';
 import assistantRouter from './routes/assistant';
 import alexaRouter from './routes/alexa';
 import inspectionsRouter from './routes/inspections';
+import alexaPlusRouter from './routes/alexaPlus';
 import { optionalAuth } from './middleware/auth';
 
 const app = express();
@@ -53,6 +54,8 @@ app.use('/api/repairs', optionalAuth, repairsRouter);
 app.use('/api/dashboard', optionalAuth, dashboardRouter);
 app.use('/api/assistant', optionalAuth, assistantRouter);
 app.use('/api/alexa', alexaRouter);
+app.use('/api/alexa-plus/v1', optionalAuth, alexaPlusRouter);
+app.use('/api/alexa-plus', optionalAuth, alexaPlusRouter);
 app.use('/api/inspections', optionalAuth, inspectionsRouter);
 
 

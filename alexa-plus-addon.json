@@ -1,0 +1,64 @@
+{
+  "$schema": "https://developer.amazon.com/alexa-plus/schemas/addon-v1.json",
+  "schemaVersion": "2025-11-25",
+  "addOnId": "com.amazon.alexa.homeservices.fixflow",
+  "category": "home_services",
+  "namespace": "com.amazon.alexa.homeservices.v1",
+  "name": "FixFlow Home Repair & Diagnostics",
+  "description": "Alexa+ Home Services Category Add-on providing automated appliance diagnosis, warranty verification, Digital Repair Passport access, and contractor dispatch simulation.",
+  "version": "1.0.0",
+  "publisher": "FixFlow AI",
+  "locales": ["en-US"],
+  "runtime": {
+    "type": "category-action-spi",
+    "endpoint": "https://api.fixflow.local/api/alexa-plus/v1/action",
+    "mcpEndpoint": "https://api.fixflow.local/mcp",
+    "transport": "streamable-http",
+    "mcpProtocolVersion": "2025-11-25"
+  },
+  "capabilities": {
+    "discoveryStrategy": "AUTO_MATCH",
+    "supportedServiceTypes": [
+      "appliance_repair",
+      "hvac_service",
+      "plumbing_inspection",
+      "warranty_evaluation"
+    ],
+    "supportedOperations": [
+      "com.amazon.alexa.homeservices.v1.Discover",
+      "com.amazon.alexa.homeservices.v1.GetDiagnostics",
+      "com.amazon.alexa.homeservices.v1.CheckAvailability",
+      "com.amazon.alexa.homeservices.v1.CreateBooking",
+      "com.amazon.alexa.homeservices.v1.GetBookingStatus",
+      "com.amazon.alexa.homeservices.v1.CancelBooking"
+    ],
+    "mcpApps": {
+      "enabled": true,
+      "views": [
+        {
+          "viewId": "repair-passport-card",
+          "description": "Interactive Digital Repair Passport display showing maintenance history and warranty."
+        },
+        {
+          "viewId": "dispatch-tracker-live",
+          "description": "Live technician dispatch tracking view with status timeline and arrival estimates."
+        }
+      ]
+    }
+  },
+  "authentication": {
+    "type": "oauth2",
+    "grantTypes": ["authorization_code", "refresh_token"],
+    "authorizationUrl": "https://api.fixflow.local/api/auth/oauth/authorize",
+    "tokenUrl": "https://api.fixflow.local/api/auth/oauth/token",
+    "scopes": [
+      "appliances:read",
+      "repairs:read",
+      "repairs:write"
+    ]
+  },
+  "simulationDisclosure": {
+    "isSimulation": true,
+    "disclaimer": "FixFlow contractor dispatch and scheduling are simulated demonstrations for the Amazon Developers Hackathon Alexa+ Track. No live financial charges or commercial dispatches are placed."
+  }
+}
