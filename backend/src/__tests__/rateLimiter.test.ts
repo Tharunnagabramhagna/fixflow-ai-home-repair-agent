@@ -111,27 +111,27 @@ describe('FixFlow AI & Multimodal Rate Limiting Security Hardening', () => {
       expect(res.body.clientIp).toBe('203.0.113.77');
     });
 
-    it('should correctly extract client IP from verified Vercel edge rewrite headers', async () => {
+    it('should reject forged Vercel headers on direct requests and prevent attackers from setting arbitrary identities', async () => {
       const testApp = express();
       testApp.set('trust proxy', 1);
-      testApp.get('/test-vercel-rewrite', (req: Request, res: Response) => {
+      testApp.get('/test-forged-vercel', (req: Request, res: Response) => {
         res.json({ clientIp: extractClientIp(req) });
       });
 
-      // Legitimate request routed through FixFlow's Vercel deployment edge rewrite
+      // Attacker attempts to forge all Vercel headers directly against the public backend
       const res = await supertest(testApp)
-        .get('/test-vercel-rewrite')
-        .set('X-Vercel-Id', 'bom1::qtmrv-1793127988456-bfc6af4e7f35')
+        .get('/test-forged-vercel')
+        .set('X-Vercel-Id', 'bom1::fake-trace-id')
         .set('X-Forwarded-Host', 'fixflow-ai-home-repair-agent-two.vercel.app')
-        .set('X-Vercel-Forwarded-For', '198.51.100.42')
-        .set('X-Forwarded-For', '198.51.100.42, 76.76.21.21');
+        .set('X-Vercel-Forwarded-For', '10.99.1.1')
+        .set('X-Forwarded-For', '203.0.113.88');
 
       expect(res.status).toBe(200);
-      // Must extract the verified client IP behind Vercel rather than grouping under 76.76.21.21
-      expect(res.body.clientIp).toBe('198.51.100.42');
+      // Pattern match alone is NOT trusted; must strictly fall back to verified req.ip (203.0.113.88)
+      expect(res.body.clientIp).toBe('203.0.113.88');
     });
 
-    it('should isolate guest rate-limiting buckets between distinct users accessing through Vercel rewrite without grouping under shared proxy IP', async () => {
+    it('should prevent an attacker from bypassing rate limits by rotating forged X-Vercel-Forwarded-For headers', async () => {
       const testApp = express();
       testApp.use(express.json());
       testApp.set('trust proxy', 1);
@@ -140,69 +140,85 @@ describe('FixFlow AI & Multimodal Rate Limiting Security Hardening', () => {
         {
           windowMs: 60000,
           max: 2,
+          message: 'Rate limit exceeded.',
         },
         customStore
       );
 
-      testApp.post('/test-vercel-limiter', limiter, (_req: Request, res: Response) => {
+      testApp.post('/test-vercel-spoof-evasion', limiter, (_req: Request, res: Response) => {
         res.json({ ok: true });
       });
 
-      // Vercel User 1 sends 2 requests (exhausts max quota of 2)
-      const u1_r1 = await supertest(testApp)
-        .post('/test-vercel-limiter')
-        .set('X-Vercel-Id', 'bom1::trace-user-1')
+      // Attacker sends forged IP 1
+      const r1 = await supertest(testApp)
+        .post('/test-vercel-spoof-evasion')
+        .set('X-Vercel-Id', 'bom1::fake-1')
         .set('X-Forwarded-Host', 'fixflow-ai-home-repair-agent-two.vercel.app')
-        .set('X-Vercel-Forwarded-For', '198.51.100.10')
-        .set('X-Forwarded-For', '198.51.100.10, 76.76.21.21');
-      expect(u1_r1.status).toBe(200);
+        .set('X-Vercel-Forwarded-For', '10.99.1.1')
+        .set('X-Forwarded-For', '203.0.113.99');
+      expect(r1.status).toBe(200);
 
-      const u1_r2 = await supertest(testApp)
-        .post('/test-vercel-limiter')
-        .set('X-Vercel-Id', 'bom1::trace-user-1')
+      // Attacker rotates to forged IP 2 from same network connection
+      const r2 = await supertest(testApp)
+        .post('/test-vercel-spoof-evasion')
+        .set('X-Vercel-Id', 'bom1::fake-2')
         .set('X-Forwarded-Host', 'fixflow-ai-home-repair-agent-two.vercel.app')
-        .set('X-Vercel-Forwarded-For', '198.51.100.10')
-        .set('X-Forwarded-For', '198.51.100.10, 76.76.21.21');
-      expect(u1_r2.status).toBe(200);
+        .set('X-Vercel-Forwarded-For', '10.99.2.2')
+        .set('X-Forwarded-For', '203.0.113.99');
+      expect(r2.status).toBe(200);
 
-      // User 1 3rd request is blocked with HTTP 429
-      const u1_r3 = await supertest(testApp)
-        .post('/test-vercel-limiter')
-        .set('X-Vercel-Id', 'bom1::trace-user-1')
+      // Attacker rotates to forged IP 3 from same connection -> MUST BE BLOCKED (HTTP 429)
+      const r3 = await supertest(testApp)
+        .post('/test-vercel-spoof-evasion')
+        .set('X-Vercel-Id', 'bom1::fake-3')
         .set('X-Forwarded-Host', 'fixflow-ai-home-repair-agent-two.vercel.app')
-        .set('X-Vercel-Forwarded-For', '198.51.100.10')
-        .set('X-Forwarded-For', '198.51.100.10, 76.76.21.21');
-      expect(u1_r3.status).toBe(429);
-
-      // Vercel User 2 on the same Vercel proxy host must NOT be blocked
-      const u2_r1 = await supertest(testApp)
-        .post('/test-vercel-limiter')
-        .set('X-Vercel-Id', 'bom1::trace-user-2')
-        .set('X-Forwarded-Host', 'fixflow-ai-home-repair-agent-two.vercel.app')
-        .set('X-Vercel-Forwarded-For', '198.51.100.20')
-        .set('X-Forwarded-For', '198.51.100.20, 76.76.21.21');
-      expect(u2_r1.status).toBe(200);
-      expect(u2_r1.body.ok).toBe(true);
+        .set('X-Vercel-Forwarded-For', '10.99.3.3')
+        .set('X-Forwarded-For', '203.0.113.99');
+      expect(r3.status).toBe(429);
+      expect(r3.body.error).toBe('Rate limit exceeded.');
     });
 
-    it('should reject forged Vercel headers with unauthorized forwarded hosts and fall back to req.ip', async () => {
-      const testApp = express();
-      testApp.set('trust proxy', 1);
-      testApp.get('/test-invalid-host', (req: Request, res: Response) => {
-        res.json({ clientIp: extractClientIp(req) });
-      });
+    it('should support authenticated trusted proxy handoff when a valid server-to-server secret is verified', async () => {
+      const originalSecret = process.env.TRUSTED_PROXY_SECRET;
+      process.env.TRUSTED_PROXY_SECRET = 'secure-production-proxy-token-xyz';
 
-      // Attacker tries to spoof Vercel headers but specifies unauthorized host
-      const res = await supertest(testApp)
-        .get('/test-invalid-host')
-        .set('X-Vercel-Id', 'bom1::fake-trace')
-        .set('X-Forwarded-Host', 'malicious-attacker-site.com')
-        .set('X-Vercel-Forwarded-For', '10.0.0.99')
-        .set('X-Forwarded-For', '203.0.113.88');
+      try {
+        const testApp = express();
+        testApp.set('trust proxy', 1);
+        testApp.get('/test-trusted-proxy', (req: Request, res: Response) => {
+          res.json({ clientIp: extractClientIp(req) });
+        });
 
-      expect(res.status).toBe(200);
-      // Must fall back to req.ip (203.0.113.88)
-      expect(res.body.clientIp).toBe('203.0.113.88');
+        // 1. Authenticated proxy request with valid secret -> trusts forwarded client IP
+        const validRes = await supertest(testApp)
+          .get('/test-trusted-proxy')
+          .set('X-Trusted-Proxy-Secret', 'secure-production-proxy-token-xyz')
+          .set('X-Forwarded-For', '198.51.100.42, 76.76.21.21');
+        expect(validRes.status).toBe(200);
+        expect(validRes.body.clientIp).toBe('198.51.100.42');
+
+        // 2. Unauthenticated request with invalid secret -> rejects forwarded IP and falls back to req.ip
+        const invalidRes = await supertest(testApp)
+          .get('/test-trusted-proxy')
+          .set('X-Trusted-Proxy-Secret', 'wrong-invalid-secret')
+          .set('X-Forwarded-For', '198.51.100.42, 76.76.21.21');
+        expect(invalidRes.status).toBe(200);
+        expect(invalidRes.body.clientIp).toBe('76.76.21.21');
+
+        // 3. Request with mismatched secret length -> safely rejects via constant-time comparison
+        const mismatchRes = await supertest(testApp)
+          .get('/test-trusted-proxy')
+          .set('X-Trusted-Proxy-Secret', 'short')
+          .set('X-Forwarded-For', '198.51.100.42, 76.76.21.21');
+        expect(mismatchRes.status).toBe(200);
+        expect(mismatchRes.body.clientIp).toBe('76.76.21.21');
+      } finally {
+        if (originalSecret !== undefined) {
+          process.env.TRUSTED_PROXY_SECRET = originalSecret;
+        } else {
+          delete process.env.TRUSTED_PROXY_SECRET;
+        }
+      }
     });
 
     it('should fall back to socket remoteAddress on direct connections without proxy headers', () => {
@@ -433,6 +449,58 @@ describe('FixFlow AI & Multimodal Rate Limiting Security Hardening', () => {
         .post('/test-guest')
         .set('X-Forwarded-For', '203.0.113.101');
       expect(ip2_r1.status).toBe(200);
+    });
+
+    it('should prevent an unauthenticated client from bypassing limits by supplying forged session tokens or user headers', async () => {
+      const testApp = express();
+      testApp.use(express.json());
+      testApp.set('trust proxy', 1);
+      const customStore = new MemoryRateLimitStore();
+      const limiter = createRateLimiter(
+        {
+          windowMs: 60000,
+          max: 1,
+        },
+        customStore
+      );
+
+      // optionalAuth rejects invalid tokens; rate limiter keys by req.user?.id or extractClientIp
+      testApp.post(
+        '/test-guest-security',
+        (req: any, _res, next) => {
+          // Simulate auth middleware: forged token does not map to valid user in DB
+          if (req.headers.authorization === 'Bearer valid-user-token') {
+            req.user = { id: 'legit-user-1', name: 'Legit', email: 'legit@example.com' };
+          }
+          next();
+        },
+        limiter,
+        (_req: Request, res: Response) => {
+          res.json({ ok: true });
+        }
+      );
+
+      // Caller makes 1st request as guest -> OK
+      const r1 = await supertest(testApp)
+        .post('/test-guest-security')
+        .set('X-Forwarded-For', '203.0.113.150');
+      expect(r1.status).toBe(200);
+
+      // Caller tries to bypass limit by sending forged session token -> must STILL be blocked (HTTP 429)!
+      const r2 = await supertest(testApp)
+        .post('/test-guest-security')
+        .set('Authorization', 'Bearer forged-invalid-token')
+        .set('Cookie', 'fixflow_session=forged-fake-session')
+        .set('X-Forwarded-For', '203.0.113.150');
+      expect(r2.status).toBe(429);
+      expect(r2.body.error).toContain('Rate limit exceeded');
+
+      // Caller tries to bypass limit by sending forged X-User-Id header -> must STILL be blocked (HTTP 429)!
+      const r3 = await supertest(testApp)
+        .post('/test-guest-security')
+        .set('X-User-Id', 'attacker-chosen-id')
+        .set('X-Forwarded-For', '203.0.113.150');
+      expect(r3.status).toBe(429);
     });
   });
 
