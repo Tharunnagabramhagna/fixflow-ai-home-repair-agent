@@ -12,9 +12,21 @@ import { optionalAuth } from './middleware/auth';
 
 const app = express();
 
-// Trust reverse proxy (Render, Railway, Vercel edge rewrite, Cloudflare)
-const trustProxyConfig = process.env.TRUST_PROXY || true;
-app.set('trust proxy', trustProxyConfig);
+// Configure Express proxy trust for the actual established deployment topology.
+// The Node.js application container on Render and Railway sits behind exactly 1
+// reverse-proxy ingress hop (the hosting provider load balancer).
+// Setting 'trust proxy' to 1 (or configured TRUST_PROXY) instructs Express to trust only
+// the immediate ingress proxy and discard client-forged upstream addresses in X-Forwarded-For.
+const getTrustProxySetting = (): number | boolean | string => {
+  const envVal = process.env.TRUST_PROXY;
+  if (!envVal) return 1; // 1 hop default for Render / Railway container ingress
+  if (envVal === 'true') return true;
+  if (envVal === 'false') return false;
+  const parsed = parseInt(envVal, 10);
+  return isNaN(parsed) ? envVal : parsed;
+};
+
+app.set('trust proxy', getTrustProxySetting());
 
 // Production default origins that are always permitted
 const PRODUCTION_ALLOWED_ORIGINS = [

@@ -15,39 +15,23 @@ export interface RateLimiterOptions {
   skip?: (req: AuthenticatedRequest) => boolean;
 }
 
+/**
+ * Safely extracts client IP address relying on Express's proxy-addr verified req.ip.
+ *
+ * In production behind a reverse proxy (Render / Railway), Express evaluates req.ip
+ * by inspecting X-Forwarded-For against the configured trusted proxy hop count (1).
+ * Arbitrary client-supplied headers (e.g. CF-Connecting-IP, X-Vercel-Forwarded-For,
+ * X-Real-IP, or extra prepended X-Forwarded-For entries) are NOT manually trusted,
+ * preventing malicious clients from forging headers to evade rate limits.
+ */
 export function extractClientIp(req: Request): string {
-  // 1. Cloudflare connecting IP
-  const cfIp = req.headers['cf-connecting-ip'];
-  if (typeof cfIp === 'string' && cfIp.trim()) {
-    return cfIp.trim();
-  }
-
-  // 2. Vercel edge forwarded IP
-  const vercelIp = req.headers['x-vercel-forwarded-for'];
-  if (typeof vercelIp === 'string' && vercelIp.trim()) {
-    return vercelIp.split(',')[0].trim();
-  }
-
-  // 3. X-Real-IP
-  const realIp = req.headers['x-real-ip'];
-  if (typeof realIp === 'string' && realIp.trim()) {
-    return realIp.trim();
-  }
-
-  // 4. Standard X-Forwarded-For (leftmost is original client)
-  const forwardedFor = req.headers['x-forwarded-for'];
-  if (typeof forwardedFor === 'string' && forwardedFor.trim()) {
-    const first = forwardedFor.split(',')[0].trim();
-    if (first) return first;
-  }
-
-  // 5. Express req.ip (calculated when trust proxy is active)
-  if (req.ip && req.ip.trim()) {
+  // 1. Rely on Express's verified req.ip (determined via proxy-addr & trust proxy configuration)
+  if (req.ip && typeof req.ip === 'string' && req.ip.trim()) {
     return req.ip.trim();
   }
 
-  // 6. Underlying socket remote address
-  if (req.socket?.remoteAddress && req.socket.remoteAddress.trim()) {
+  // 2. Direct connection socket fallback
+  if (req.socket?.remoteAddress && typeof req.socket.remoteAddress === 'string' && req.socket.remoteAddress.trim()) {
     return req.socket.remoteAddress.trim();
   }
 

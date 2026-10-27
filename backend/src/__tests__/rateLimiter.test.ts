@@ -10,8 +10,6 @@ import {
   aiChatStore,
   multimodalStore,
 } from '../middleware/rateLimiter';
-import { authService } from '../services/authService';
-import { initializeDatabase } from '../db/database';
 
 describe('FixFlow AI & Multimodal Rate Limiting Security Hardening', () => {
   beforeEach(() => {
@@ -22,43 +20,100 @@ describe('FixFlow AI & Multimodal Rate Limiting Security Hardening', () => {
     resetRateLimits();
   });
 
-  describe('1. Client IP Extraction and Proxy Trust', () => {
-    it('should correctly prioritize Cloudflare cf-connecting-ip header', () => {
-      const mockReq = {
-        headers: {
-          'cf-connecting-ip': '203.0.113.195',
-          'x-vercel-forwarded-for': '198.51.100.1',
-          'x-forwarded-for': '198.51.100.1, 10.0.0.1',
-        },
-      } as unknown as Request;
+  describe('1. Proxy Trust, req.ip Resolution, and Anti-Spoofing Defenses', () => {
+    it('should safely extract client IP from Express req.ip when configured with trust proxy 1', async () => {
+      const testApp = express();
+      testApp.set('trust proxy', 1);
+      testApp.get('/test-ip', (req: Request, res: Response) => {
+        res.json({ clientIp: extractClientIp(req) });
+      });
 
-      expect(extractClientIp(mockReq)).toBe('203.0.113.195');
+      const res = await supertest(testApp)
+        .get('/test-ip')
+        .set('X-Forwarded-For', '203.0.113.195');
+
+      expect(res.status).toBe(200);
+      expect(res.body.clientIp).toBe('203.0.113.195');
     });
 
-    it('should correctly extract Vercel edge x-vercel-forwarded-for header', () => {
-      const mockReq = {
-        headers: {
-          'x-vercel-forwarded-for': '198.51.100.42, 10.0.0.2',
-          'x-forwarded-for': '10.0.0.2',
-        },
-      } as unknown as Request;
+    it('should discard client-forged upstream IPs in X-Forwarded-For and rely only on trusted proxy ingress hop', async () => {
+      const testApp = express();
+      testApp.set('trust proxy', 1);
+      testApp.get('/test-forged', (req: Request, res: Response) => {
+        res.json({ clientIp: extractClientIp(req) });
+      });
 
-      expect(extractClientIp(mockReq)).toBe('198.51.100.42');
+      // Malicious client prepends forged IP '1.1.1.1' before trusted ingress appends '203.0.113.195'
+      const res = await supertest(testApp)
+        .get('/test-forged')
+        .set('X-Forwarded-For', '1.1.1.1, 203.0.113.195');
+
+      expect(res.status).toBe(200);
+      // Express trust proxy: 1 correctly evaluates the 1st hop from the socket, discarding forged '1.1.1.1'
+      expect(res.body.clientIp).toBe('203.0.113.195');
     });
 
-    it('should extract the first client IP in standard x-forwarded-for chain', () => {
-      const mockReq = {
-        headers: {
-          'x-forwarded-for': '203.0.113.50, 192.168.1.1, 10.0.0.1',
+    it('should prevent an attacker from evading rate limits by rotating forged X-Forwarded-For addresses', async () => {
+      const testApp = express();
+      testApp.use(express.json());
+      testApp.set('trust proxy', 1);
+      const customStore = new MemoryRateLimitStore();
+      const limiter = createRateLimiter(
+        {
+          windowMs: 60000,
+          max: 2,
+          message: 'Rate limit exceeded.',
         },
-      } as unknown as Request;
+        customStore
+      );
 
-      expect(extractClientIp(mockReq)).toBe('203.0.113.50');
+      testApp.post('/test-spoof-evasion', limiter, (_req: Request, res: Response) => {
+        res.json({ success: true });
+      });
+
+      // Attacker sends forged IP A with real proxy hop 203.0.113.50
+      const r1 = await supertest(testApp)
+        .post('/test-spoof-evasion')
+        .set('X-Forwarded-For', '10.99.1.1, 203.0.113.50');
+      expect(r1.status).toBe(200);
+
+      // Attacker rotates forged IP B with real proxy hop 203.0.113.50
+      const r2 = await supertest(testApp)
+        .post('/test-spoof-evasion')
+        .set('X-Forwarded-For', '10.99.2.2, 203.0.113.50');
+      expect(r2.status).toBe(200);
+
+      // Attacker rotates forged IP C with real proxy hop 203.0.113.50 -> must still be blocked (HTTP 429)!
+      const r3 = await supertest(testApp)
+        .post('/test-spoof-evasion')
+        .set('X-Forwarded-For', '10.99.3.3, 203.0.113.50');
+      expect(r3.status).toBe(429);
+      expect(r3.body.error).toBe('Rate limit exceeded.');
     });
 
-    it('should fall back to socket remoteAddress if headers are absent', () => {
+    it('should completely ignore arbitrary client-supplied CF-Connecting-IP, X-Vercel-Forwarded-For, and X-Real-IP headers', async () => {
+      const testApp = express();
+      testApp.set('trust proxy', 1);
+      testApp.get('/test-provider-headers', (req: Request, res: Response) => {
+        res.json({ clientIp: extractClientIp(req) });
+      });
+
+      // Client sends spoofed provider headers directly to the backend
+      const res = await supertest(testApp)
+        .get('/test-provider-headers')
+        .set('CF-Connecting-IP', '1.2.3.4')
+        .set('X-Vercel-Forwarded-For', '5.6.7.8')
+        .set('X-Real-IP', '9.10.11.12')
+        .set('X-Forwarded-For', '203.0.113.77');
+
+      expect(res.status).toBe(200);
+      // The rate limiter must ignore unverified provider headers and strictly evaluate req.ip
+      expect(res.body.clientIp).toBe('203.0.113.77');
+    });
+
+    it('should fall back to socket remoteAddress on direct connections without proxy headers', () => {
       const mockReq = {
-        headers: {},
+        ip: '',
         socket: { remoteAddress: '127.0.0.1' },
       } as unknown as Request;
 
@@ -70,6 +125,7 @@ describe('FixFlow AI & Multimodal Rate Limiting Security Hardening', () => {
     it('should return rate limit headers on normal requests', async () => {
       const testApp = express();
       testApp.use(express.json());
+      testApp.set('trust proxy', 1);
       const customStore = new MemoryRateLimitStore();
       const limiter = createRateLimiter(
         {
@@ -103,6 +159,7 @@ describe('FixFlow AI & Multimodal Rate Limiting Security Hardening', () => {
     it('should exhaust the limit and return HTTP 429 with retry information', async () => {
       const testApp = express();
       testApp.use(express.json());
+      testApp.set('trust proxy', 1);
       const customStore = new MemoryRateLimitStore();
       const limiter = createRateLimiter(
         {
@@ -145,6 +202,7 @@ describe('FixFlow AI & Multimodal Rate Limiting Security Hardening', () => {
     it('should recover and allow requests after the window expires', async () => {
       const testApp = express();
       testApp.use(express.json());
+      testApp.set('trust proxy', 1);
       const customStore = new MemoryRateLimitStore();
       const shortWindowMs = 200; // 200ms window
       const limiter = createRateLimiter(
@@ -185,23 +243,7 @@ describe('FixFlow AI & Multimodal Rate Limiting Security Hardening', () => {
     it('should reject requests with HTTP 400 when client identity is completely missing or invalid', async () => {
       const testApp = express();
       testApp.use(express.json());
-      const limiter = createRateLimiter({
-        windowMs: 60000,
-        max: 5,
-        requireValidIdentity: true,
-      });
 
-      testApp.post('/test-identity', limiter, (_req: Request, res: Response) => {
-        res.json({ ok: true });
-      });
-
-      // Explicitly set empty IP headers and mock empty socket address
-      const r = await supertest(testApp)
-        .post('/test-identity')
-        .set('X-Forwarded-For', '')
-        .set('X-Real-IP', '');
-
-      // In Supertest, socket address may exist; verify with key generator returning null
       const strictLimiter = createRateLimiter({
         keyGenerator: () => null,
       });
@@ -219,6 +261,7 @@ describe('FixFlow AI & Multimodal Rate Limiting Security Hardening', () => {
     it('should isolate rate limits between different authenticated users', async () => {
       const testApp = express();
       testApp.use(express.json());
+      testApp.set('trust proxy', 1);
       const customStore = new MemoryRateLimitStore();
       const limiter = createRateLimiter(
         {
@@ -228,15 +271,20 @@ describe('FixFlow AI & Multimodal Rate Limiting Security Hardening', () => {
         customStore
       );
 
-      testApp.post('/test-auth', (req: any, _res, next) => {
-        const userId = req.headers['x-user-id'];
-        if (userId) {
-          req.user = { id: userId, name: 'Test', email: 'test@example.com' };
+      testApp.post(
+        '/test-auth',
+        (req: any, _res, next) => {
+          const userId = req.headers['x-user-id'];
+          if (userId) {
+            req.user = { id: userId, name: 'Test', email: 'test@example.com' };
+          }
+          next();
+        },
+        limiter,
+        (_req: Request, res: Response) => {
+          res.json({ ok: true });
         }
-        next();
-      }, limiter, (_req: Request, res: Response) => {
-        res.json({ ok: true });
-      });
+      );
 
       // User 1 makes 1st request -> OK
       const u1_r1 = await supertest(testApp)
@@ -260,6 +308,7 @@ describe('FixFlow AI & Multimodal Rate Limiting Security Hardening', () => {
     it('should isolate rate limits between different guest IP addresses', async () => {
       const testApp = express();
       testApp.use(express.json());
+      testApp.set('trust proxy', 1);
       const customStore = new MemoryRateLimitStore();
       const limiter = createRateLimiter(
         {

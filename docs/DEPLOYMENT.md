@@ -39,7 +39,7 @@ This guide documents the production deployment of the FixFlow backend API on **R
 ### Key Production Decisions:
 1. **Active Host (Render):** Production traffic is served by Render at `https://fixflow-ai-home-repair-agent.onrender.com`.
 2. **Reverse Proxy (Vercel):** The frontend at `https://fixflow-ai-home-repair-agent-two.vercel.app` routes `/api/*` requests through edge rewrites to Render, ensuring seamless same-origin cookie delivery without third-party cookie restrictions.
-3. **Proxy Trust:** Configured via `app.set('trust proxy', true)` to accurately resolve client IP addresses through Vercel Edge, Cloudflare, and Render reverse proxies.
+3. **Proxy Trust:** Configured via `app.set('trust proxy', 1)` to accurately resolve client IP addresses through the immediate ingress load balancer while strictly discarding untrusted, client-forged upstream headers.
 4. **Rate Limiting Protection:** Configurable sliding-window rate limiters defend `/api/assistant` (20 req/min) and `/api/inspections` (10 req/min) against denial of service and LLM cost spikes.
 5. **Persistent Storage:** SQLite database and uploaded inspection photos reside on a persistent volume mount (`DATA_DIR=/data`).
 6. **Alternative Target (Railway):** Railway remains fully documented and supported as a drop-in deployment target with persistent volume mount `/data`.

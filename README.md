@@ -24,7 +24,7 @@
     <img src="https://img.shields.io/badge/SQLite_3-WAL_Mode-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite" />
     <img src="https://img.shields.io/badge/Model_Context_Protocol-Streamable_HTTP-183B32?style=flat-square&logoColor=white" alt="MCP" />
     <img src="https://img.shields.io/badge/Zod-Validation-3E67B1?style=flat-square&logo=zod&logoColor=white" alt="Zod" />
-    <img src="https://img.shields.io/badge/Tests-151_Passing-2ea44f?style=flat-square&logo=vitest&logoColor=white" alt="Vitest Tests" />
+    <img src="https://img.shields.io/badge/Tests-152_Passing-2ea44f?style=flat-square&logo=vitest&logoColor=white" alt="Vitest Tests" />
     <img src="https://img.shields.io/badge/Frontend_Host-Vercel-000000?style=flat-square&logo=vercel&logoColor=white" alt="Vercel" />
     <img src="https://img.shields.io/badge/Backend_Host-Render-46E3B7?style=flat-square&logo=render&logoColor=white" alt="Render" />
   </p>
@@ -156,7 +156,7 @@ FixFlow includes an official **Model Context Protocol (MCP)** server (`mcp-serve
 | **Database** | SQLite 3, `better-sqlite3` | SQLite 3 (WAL mode) | High-performance relational storage, foreign key enforcement, and cold backups |
 | **Validation** | Zod | Zod 3 / 4 | Runtime schema validation for API payloads, tool arguments, and lifecycle states |
 | **Agent Protocol** | Model Context Protocol SDK | `@modelcontextprotocol/sdk` | Streamable HTTP MCP server exposing 7 FixFlow repair tools |
-| **Testing** | Vitest, Supertest | Vitest 5 | 151 automated tests (129 backend + 22 MCP server) spanning API, workflows, seed, MCP, and rate limiting |
+| **Testing** | Vitest, Supertest | Vitest 5 | 152 automated tests (130 backend + 22 MCP server) spanning API, workflows, seed, MCP, and proxy-safe rate limiting |
 | **Frontend Hosting** | Vercel | Production | Hosted frontend SPA with `/api/*` reverse-proxy rewrite rules |
 | **Backend Hosting** | Render (Active Production) / Railway (Alternative Target) | Node.js Container | Dedicated API execution with persistent volume storage for SQLite database |
 
@@ -385,17 +385,17 @@ npm run test:mcp
 ```
 
 ### Test Suite Execution Summary
-The automated test suite runs **151 tests across 11 test suites** with 100% pass rate:
+The automated test suite runs **152 tests across 11 test suites** with 100% pass rate:
 
 ```
 Test Files   11 passed (11)
-Tests        151 passed (151)
+Tests        152 passed (152)
 Duration     ~28s (isolated database runners)
 ```
 
 | Test Suite File | Tests | Focus Area & Verified Behaviors |
 | :--- | :---: | :--- |
-| **`rateLimiter.test.ts`** | 12 | Sliding-window rate limiting on `/api/assistant` & `/api/inspections` (and `/api/diagnostics` & `/api/multimodal` aliases), proxy trust header extraction (Cloudflare/Vercel/Render), per-user and per-IP isolation, limit exhaustion (HTTP 429), recovery after window expiry, and ordinary endpoint availability. |
+| **`rateLimiter.test.ts`** | 13 | Sliding-window rate limiting on `/api/assistant` & `/api/inspections` (and `/api/diagnostics` & `/api/multimodal` aliases), proxy trust verification (Express `trust proxy: 1`), anti-spoofing header defense (rejecting forged `CF-Connecting-IP`, `X-Vercel-Forwarded-For`, `X-Real-IP`, and multi-hop `X-Forwarded-For`), per-user and per-IP isolation, limit exhaustion (HTTP 429), recovery after window expiry, and ordinary endpoint availability. |
 | **`multimodal.test.ts`** | 15 | Magic-byte binary verification, dimension limits, EXIF sanitization, directory traversal defense, and structured visual diagnostics. |
 | **`alexaPlus.test.ts`** | 16 | Alexa+ category action SPI handling, Category Add-on manifest compatibility (`alexa-plus-addon.json`), and availability checks. |
 | **`alexa.test.ts`** | 12 | ASK request signature verification, timestamp freshness checking, supported intent dispatching, and error handling. |
