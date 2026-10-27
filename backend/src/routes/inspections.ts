@@ -4,11 +4,12 @@ import { ZodError } from 'zod';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { inspectionService } from '../services/inspectionService';
 import { analyzeInspectionSchema, applyInspectionSchema } from '../validators';
+import { multimodalRateLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
-// POST /api/inspections/analyze — Upload and analyze appliance photograph
-router.post('/analyze', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+// POST /api/inspections/analyze & POST /api/multimodal/analyze — Upload and analyze appliance photograph
+const handleAnalyze = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const input = analyzeInspectionSchema.parse(req.body);
     const userId = req.user?.id || 'sample';
@@ -53,7 +54,10 @@ router.post('/analyze', async (req: AuthenticatedRequest, res: Response, next: N
     }
     next(err);
   }
-});
+};
+
+router.post('/analyze', multimodalRateLimiter, handleAnalyze);
+router.post('/', multimodalRateLimiter, handleAnalyze);
 
 // GET /api/inspections — List inspections for authorized user
 router.get('/', (req: AuthenticatedRequest, res: Response, next: NextFunction) => {

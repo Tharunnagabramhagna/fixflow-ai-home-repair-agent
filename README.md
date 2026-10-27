@@ -24,8 +24,9 @@
     <img src="https://img.shields.io/badge/SQLite_3-WAL_Mode-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite" />
     <img src="https://img.shields.io/badge/Model_Context_Protocol-Streamable_HTTP-183B32?style=flat-square&logoColor=white" alt="MCP" />
     <img src="https://img.shields.io/badge/Zod-Validation-3E67B1?style=flat-square&logo=zod&logoColor=white" alt="Zod" />
-    <img src="https://img.shields.io/badge/Tests-139_Passing-2ea44f?style=flat-square&logo=vitest&logoColor=white" alt="Vitest Tests" />
+    <img src="https://img.shields.io/badge/Tests-151_Passing-2ea44f?style=flat-square&logo=vitest&logoColor=white" alt="Vitest Tests" />
     <img src="https://img.shields.io/badge/Frontend_Host-Vercel-000000?style=flat-square&logo=vercel&logoColor=white" alt="Vercel" />
+    <img src="https://img.shields.io/badge/Backend_Host-Render-46E3B7?style=flat-square&logo=render&logoColor=white" alt="Render" />
   </p>
 
   <p align="center">
@@ -155,12 +156,12 @@ FixFlow includes an official **Model Context Protocol (MCP)** server (`mcp-serve
 | **Database** | SQLite 3, `better-sqlite3` | SQLite 3 (WAL mode) | High-performance relational storage, foreign key enforcement, and cold backups |
 | **Validation** | Zod | Zod 3 / 4 | Runtime schema validation for API payloads, tool arguments, and lifecycle states |
 | **Agent Protocol** | Model Context Protocol SDK | `@modelcontextprotocol/sdk` | Streamable HTTP MCP server exposing 7 FixFlow repair tools |
-| **Testing** | Vitest, Supertest | Vitest 5 | 139 automated tests spanning backend API, workflows, seed, and MCP server |
+| **Testing** | Vitest, Supertest | Vitest 5 | 151 automated tests (129 backend + 22 MCP server) spanning API, workflows, seed, MCP, and rate limiting |
 | **Frontend Hosting** | Vercel | Production | Hosted frontend SPA with `/api/*` reverse-proxy rewrite rules |
-| **Backend Hosting** | Railway / Render | Node.js Container | Dedicated API execution with persistent volume storage for SQLite database |
+| **Backend Hosting** | Render (Active Production) / Railway (Alternative Target) | Node.js Container | Dedicated API execution with persistent volume storage for SQLite database |
 
 > [!NOTE]
-> FixFlow clearly separates its hosted frontend on Vercel from the backend API services. In production, Vercel edge rewrites route `/api/*` requests to the dedicated Node.js host, maintaining same-origin cookie security and preventing cross-origin token leakage.
+> FixFlow clearly separates its hosted frontend on Vercel from the backend API services deployed on Render (`https://fixflow-ai-home-repair-agent.onrender.com`). In production, Vercel edge rewrites route `/api/*` requests to the Render host, maintaining same-origin cookie security and preventing cross-origin token leakage. Railway remains fully documented as a drop-in alternative deployment target.
 
 ---
 
@@ -384,16 +385,17 @@ npm run test:mcp
 ```
 
 ### Test Suite Execution Summary
-The automated test suite runs **139 tests across 10 test suites** with 100% pass rate:
+The automated test suite runs **151 tests across 11 test suites** with 100% pass rate:
 
 ```
-Test Files   10 passed (10)
-Tests        139 passed (139)
-Duration     ~65s (isolated database runners)
+Test Files   11 passed (11)
+Tests        151 passed (151)
+Duration     ~28s (isolated database runners)
 ```
 
 | Test Suite File | Tests | Focus Area & Verified Behaviors |
 | :--- | :---: | :--- |
+| **`rateLimiter.test.ts`** | 12 | Sliding-window rate limiting on `/api/assistant` & `/api/inspections` (and `/api/diagnostics` & `/api/multimodal` aliases), proxy trust header extraction (Cloudflare/Vercel/Render), per-user and per-IP isolation, limit exhaustion (HTTP 429), recovery after window expiry, and ordinary endpoint availability. |
 | **`multimodal.test.ts`** | 15 | Magic-byte binary verification, dimension limits, EXIF sanitization, directory traversal defense, and structured visual diagnostics. |
 | **`alexaPlus.test.ts`** | 16 | Alexa+ category action SPI handling, Category Add-on manifest compatibility (`alexa-plus-addon.json`), and availability checks. |
 | **`alexa.test.ts`** | 12 | ASK request signature verification, timestamp freshness checking, supported intent dispatching, and error handling. |
@@ -406,29 +408,32 @@ Duration     ~65s (isolated database runners)
 | **`mcp.test.ts`** | 22 | MCP protocol version negotiation (2025-11-25), Streamable HTTP transport, tool schema registration, and two-step confirmation execution. |
 
 ### Complete Database Isolation in Tests
-All mutation tests execute against isolated, temporary SQLite test databases (`test-fixflow.db`, `test-mcp-hardened.db`) created in `database/data/` or in-memory. The active development database is never modified or polluted during test execution.
+All mutation tests execute against isolated, temporary SQLite test databases (`test-fixflow.db`, `test-mcp-hardened.db`, etc.) created in `database/data/` or in-memory. The active development and production databases are never modified or polluted during test execution.
 
 ---
 
 ## Current Limitations & Roadmap
 
-In adherence to hackathon submission transparency, FixFlow clearly distinguishes implemented and working capabilities from prototype integrations and future roadmap milestones.
+In adherence to production rigor and transparent architecture reporting, FixFlow distinguishes implemented and working capabilities from simulated prototypes and future certified milestones across four explicit operational states:
+
+### Operational Status Breakdown
+
+| Phase & Capability | Status | Execution Reality & Verified Scope |
+| :--- | :---: | :--- |
+| **Phase 1: Core Architecture & Passports** | **Deployed & Verified** | Live on Render + Vercel. SQLite WAL database with foreign keys, full REST API, Digital Repair Passports, warranty calculations, and verified cold backups (`scripts/create_verified_backup.js`). |
+| **Phase 2: MCP Protocol Integration** | **Deployed & Verified** | Official Model Context Protocol Streamable HTTP server on port 3002 (`mcp-server/`). 7 tools registered, 2-step confirmation token safeguards (`cfrm_*`), guest vs. authenticated isolation. Verified across 22 automated protocol tests. |
+| **Phase 3: Conversational AI Diagnostics** | **Implemented & Tested Locally (Deployed with Fallback)** | Multi-provider triage supporting Google Gemini 2.0 Flash, Anthropic Claude, and OpenAI with a deterministic offline simulator fallback. Configurable rate limiting (20 req/min) with proxy trust awareness. Gas/electrical safety interceptors verified. |
+| **Phase 4: Alexa Webhook & Dispatch Simulation** | **Simulated / Prototype-Only** | ASK webhook endpoints with cryptographic RSA signature verification (`/api/alexa`) and in-browser voice simulator. Contractor dispatch is an end-to-end lifecycle **simulation** with SSE updates (no actual commercial contractors are dispatched or billed). |
+| **Phase 5: Multimodal Inspection & OCR** | **Implemented & Tested Locally (Deployed with Fallback)** | Rating plate OCR and photo damage analysis with EXIF sanitization, magic-byte binary validation, and path traversal defense. Rate-limited at 10 req/min. Operates with Gemini Vision when API key is present or local fallback analysis. |
+| **Phase 6: Live Alexa+ Store Certification** | **Pending External Credentials & Certification** | Manifest (`alexa-plus-addon.json`) and category action SPI handlers are built and tested. Live Echo and Alexa+ deployment requires official Amazon Developer Console submission, Login with Amazon (LWA) OAuth2 account linking, and skill store certification. |
+| **Phase 7: Commercial Contractor Marketplace** | **Pending External Marketplace Integration** | Live contractor bidding, geolocation matching, and escrow payment processing (Stripe / Amazon Pay). The underlying dispatch state machine exists in simulated form; commercial provider APIs are reserved for this phase. |
+| **Phase 8: Smart Home IoT Telemetry** | **Pending Protocol Hardware Integration** | Continuous fault code ingestion and telemetry streaming directly from smart appliances via Matter / Home Assistant / Zigbee protocols. Architectural hooks exist in schema. |
 
 ### Current Limitations
 - **Simulated Contractor Dispatch:** The contractor dispatch tracking and real-time Server-Sent Events (SSE) stream demonstrate an end-to-end lifecycle simulation for hackathon evaluation. No real-world commercial contractors are dispatched or billed.
 - **Alexa+ Cloud Certification:** The Alexa+ category add-on manifest (`alexa-plus-addon.json`) and ASK webhook signatures are fully implemented, verified, and testable via the in-browser simulator. Production voice deployment on Amazon Alexa+ requires official Amazon developer certification and live skill publishing.
 - **External LLM Provider Optionality:** FixFlow includes a built-in deterministic offline simulator for diagnostic evaluations without third-party API keys. Live multimodal analysis with Google Gemini 2.0 Flash, OpenAI, or Claude requires setting the corresponding API keys in `.env`.
 - **Single-Household Prototype Scope:** User accounts and guest sessions are isolated, but persistent storage is currently architected around local and single-volume SQLite. Multi-region cloud database clustering is reserved for future enterprise phases.
-
-### Product Roadmap
-- [x] **Phase 1 — Core Architecture:** SQLite WAL database, REST API, Digital Repair Passports, and verified cold backups.
-- [x] **Phase 2 — MCP Protocol Server:** Official Model Context Protocol server running Streamable HTTP with 7 repair tools and guest vs. authenticated privacy scoping.
-- [x] **Phase 3 — Conversational AI Diagnostics:** Multi-provider assistant integration with structured tool execution and safety hazard interceptors.
-- [x] **Phase 4 — Alexa Voice Integration & Dispatch:** ASK webhook with cryptographic signature verification, verbal confirmations, and SSE contractor dispatch simulation.
-- [x] **Phase 5 — Multimodal Inspection:** Visual appliance photo upload, rating plate OCR extraction, EXIF metadata sanitization, and passport record updates.
-- [ ] **Phase 6 — Live Alexa+ Store Certification:** Submit FixFlow to the Amazon Alexa Skill Store for public Echo and Alexa+ device distribution.
-- [ ] **Phase 7 — Commercial Contractor Marketplace:** Connect local service providers with automated dispatch booking, quote comparison, and verified escrow.
-- [ ] **Phase 8 — Smart Home IoT Telemetry:** Ingest continuous fault codes and telemetry directly from smart appliances via Matter and Home Assistant protocols.
 
 ---
 

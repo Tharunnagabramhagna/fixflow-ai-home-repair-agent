@@ -12,13 +12,18 @@ import { optionalAuth } from './middleware/auth';
 
 const app = express();
 
-// Trust reverse proxy (Railway, Vercel rewrite, Cloudflare)
-app.set('trust proxy', 1);
+// Trust reverse proxy (Render, Railway, Vercel edge rewrite, Cloudflare)
+const trustProxyConfig = process.env.TRUST_PROXY || true;
+app.set('trust proxy', trustProxyConfig);
 
 // Production default origins that are always permitted
 const PRODUCTION_ALLOWED_ORIGINS = [
   'https://fixflow-ai-home-repair-agent.vercel.app',
+  'https://fixflow-ai-home-repair-agent-two.vercel.app',
 ];
+
+// Matches any official FixFlow Vercel deployment (production or preview branch)
+const VERCEL_PROJECT_REGEX = /^https:\/\/fixflow-ai-home-repair-agent(-[a-z0-9]+)?\.vercel\.app$/;
 
 // Helper to parse allowed origins from comma-separated CORS_ORIGIN
 function getAllowedOrigins(): string[] {
@@ -51,8 +56,8 @@ app.use(
       const isProduction = process.env.NODE_ENV === 'production';
       const allowedOrigins = getAllowedOrigins();
 
-      // 2. Exact match in configured CORS_ORIGIN allowlist
-      if (allowedOrigins.includes(origin)) {
+      // 2. Exact match in configured CORS_ORIGIN allowlist or Vercel project regex
+      if (allowedOrigins.includes(origin) || VERCEL_PROJECT_REGEX.test(origin)) {
         return callback(null, true);
       }
 
@@ -104,10 +109,12 @@ app.use('/api/appliances', optionalAuth, appliancesRouter);
 app.use('/api/repairs', optionalAuth, repairsRouter);
 app.use('/api/dashboard', optionalAuth, dashboardRouter);
 app.use('/api/assistant', optionalAuth, assistantRouter);
+app.use('/api/diagnostics', optionalAuth, assistantRouter);
 app.use('/api/alexa', alexaRouter);
 app.use('/api/alexa-plus/v1', optionalAuth, alexaPlusRouter);
 app.use('/api/alexa-plus', optionalAuth, alexaPlusRouter);
 app.use('/api/inspections', optionalAuth, inspectionsRouter);
+app.use('/api/multimodal', optionalAuth, inspectionsRouter);
 
 
 // Centralized error handling

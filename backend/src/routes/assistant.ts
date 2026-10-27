@@ -3,6 +3,7 @@ import { z, ZodError } from 'zod';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { assistantService, ChatMessage } from '../services/llmService';
 import { executeMcpTool, MCP_TOOLS } from '../services/mcpToolService';
+import { aiChatRateLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -25,8 +26,8 @@ const assistantConfirmRequestSchema = z.object({
   arguments: z.record(z.string(), z.any()),
 });
 
-// POST /api/assistant/chat — Conversational diagnostics and tool calling
-router.post('/chat', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+// Handler for conversational diagnostics and tool calling
+const handleChat = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const input = assistantChatRequestSchema.parse(req.body);
 
@@ -54,7 +55,11 @@ router.post('/chat', async (req: AuthenticatedRequest, res: Response, next: Next
     }
     next(err);
   }
-});
+};
+
+// POST /api/assistant/chat & POST /api/assistant (alias)
+router.post('/chat', aiChatRateLimiter, handleChat);
+router.post('/', aiChatRateLimiter, handleChat);
 
 // POST /api/assistant/confirm — Explicit homeowner confirmation execution
 router.post('/confirm', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {

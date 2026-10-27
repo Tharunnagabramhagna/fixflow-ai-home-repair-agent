@@ -1,6 +1,6 @@
-# FixFlow — Production Backend Deployment Guide (Railway + Vercel)
+# FixFlow — Production Backend Deployment Guide (Render + Vercel)
 
-This guide documents the production deployment of the FixFlow backend API on **Railway** and its integration with the frontend already deployed on **Vercel**.
+This guide documents the production deployment of the FixFlow backend API on **Render** (the active production backend host) and its integration with the frontend deployed on **Vercel** (`https://fixflow-ai-home-repair-agent-two.vercel.app`). **Railway** remains fully supported and documented as a drop-in alternative backend target.
 
 ---
 
@@ -37,10 +37,12 @@ This guide documents the production deployment of the FixFlow backend API on **R
 ```
 
 ### Key Production Decisions:
-1. **Monorepo Root Context:** Railway builds and runs from the repository root because runtime SQLite database migrations reside in `database/schema/`.
-2. **Persistent Storage:** SQLite database and uploaded inspection photos live on a dedicated Railway volume mounted at `/data`.
-3. **Same-Origin Reverse Proxy:** The frontend uses Vercel rewrites to route `/api/*` to Railway, eliminating cross-site cookie blockers and avoiding localStorage token vulnerabilities.
-4. **Strict CORS Allowlist:** Permissive wildcards are removed. Only approved Vercel origins specified in `CORS_ORIGIN` receive `Access-Control-Allow-Origin` and `Access-Control-Allow-Credentials: true`.
+1. **Active Host (Render):** Production traffic is served by Render at `https://fixflow-ai-home-repair-agent.onrender.com`.
+2. **Reverse Proxy (Vercel):** The frontend at `https://fixflow-ai-home-repair-agent-two.vercel.app` routes `/api/*` requests through edge rewrites to Render, ensuring seamless same-origin cookie delivery without third-party cookie restrictions.
+3. **Proxy Trust:** Configured via `app.set('trust proxy', true)` to accurately resolve client IP addresses through Vercel Edge, Cloudflare, and Render reverse proxies.
+4. **Rate Limiting Protection:** Configurable sliding-window rate limiters defend `/api/assistant` (20 req/min) and `/api/inspections` (10 req/min) against denial of service and LLM cost spikes.
+5. **Persistent Storage:** SQLite database and uploaded inspection photos reside on a persistent volume mount (`DATA_DIR=/data`).
+6. **Alternative Target (Railway):** Railway remains fully documented and supported as a drop-in deployment target with persistent volume mount `/data`.
 
 ---
 
