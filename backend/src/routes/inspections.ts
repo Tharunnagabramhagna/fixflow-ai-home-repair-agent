@@ -4,7 +4,7 @@ import { ZodError } from 'zod';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { inspectionService } from '../services/inspectionService';
 import { analyzeInspectionSchema, applyInspectionSchema } from '../validators';
-import { multimodalRateLimiter } from '../middleware/rateLimiter';
+import { extractClientIp, multimodalRateLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -26,7 +26,7 @@ const handleAnalyze = async (req: AuthenticatedRequest, res: Response, next: Nex
 
     const imageBuffer = Buffer.from(base64Clean, 'base64');
 
-    const ipAddress = req.ip || req.socket.remoteAddress || 'unknown';
+    const ipAddress = extractClientIp(req) || 'unknown';
 
     const inspection = await inspectionService.createInspection({
       userId,

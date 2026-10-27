@@ -111,6 +111,100 @@ describe('FixFlow AI & Multimodal Rate Limiting Security Hardening', () => {
       expect(res.body.clientIp).toBe('203.0.113.77');
     });
 
+    it('should correctly extract client IP from verified Vercel edge rewrite headers', async () => {
+      const testApp = express();
+      testApp.set('trust proxy', 1);
+      testApp.get('/test-vercel-rewrite', (req: Request, res: Response) => {
+        res.json({ clientIp: extractClientIp(req) });
+      });
+
+      // Legitimate request routed through FixFlow's Vercel deployment edge rewrite
+      const res = await supertest(testApp)
+        .get('/test-vercel-rewrite')
+        .set('X-Vercel-Id', 'bom1::qtmrv-1793127988456-bfc6af4e7f35')
+        .set('X-Forwarded-Host', 'fixflow-ai-home-repair-agent-two.vercel.app')
+        .set('X-Vercel-Forwarded-For', '198.51.100.42')
+        .set('X-Forwarded-For', '198.51.100.42, 76.76.21.21');
+
+      expect(res.status).toBe(200);
+      // Must extract the verified client IP behind Vercel rather than grouping under 76.76.21.21
+      expect(res.body.clientIp).toBe('198.51.100.42');
+    });
+
+    it('should isolate guest rate-limiting buckets between distinct users accessing through Vercel rewrite without grouping under shared proxy IP', async () => {
+      const testApp = express();
+      testApp.use(express.json());
+      testApp.set('trust proxy', 1);
+      const customStore = new MemoryRateLimitStore();
+      const limiter = createRateLimiter(
+        {
+          windowMs: 60000,
+          max: 2,
+        },
+        customStore
+      );
+
+      testApp.post('/test-vercel-limiter', limiter, (_req: Request, res: Response) => {
+        res.json({ ok: true });
+      });
+
+      // Vercel User 1 sends 2 requests (exhausts max quota of 2)
+      const u1_r1 = await supertest(testApp)
+        .post('/test-vercel-limiter')
+        .set('X-Vercel-Id', 'bom1::trace-user-1')
+        .set('X-Forwarded-Host', 'fixflow-ai-home-repair-agent-two.vercel.app')
+        .set('X-Vercel-Forwarded-For', '198.51.100.10')
+        .set('X-Forwarded-For', '198.51.100.10, 76.76.21.21');
+      expect(u1_r1.status).toBe(200);
+
+      const u1_r2 = await supertest(testApp)
+        .post('/test-vercel-limiter')
+        .set('X-Vercel-Id', 'bom1::trace-user-1')
+        .set('X-Forwarded-Host', 'fixflow-ai-home-repair-agent-two.vercel.app')
+        .set('X-Vercel-Forwarded-For', '198.51.100.10')
+        .set('X-Forwarded-For', '198.51.100.10, 76.76.21.21');
+      expect(u1_r2.status).toBe(200);
+
+      // User 1 3rd request is blocked with HTTP 429
+      const u1_r3 = await supertest(testApp)
+        .post('/test-vercel-limiter')
+        .set('X-Vercel-Id', 'bom1::trace-user-1')
+        .set('X-Forwarded-Host', 'fixflow-ai-home-repair-agent-two.vercel.app')
+        .set('X-Vercel-Forwarded-For', '198.51.100.10')
+        .set('X-Forwarded-For', '198.51.100.10, 76.76.21.21');
+      expect(u1_r3.status).toBe(429);
+
+      // Vercel User 2 on the same Vercel proxy host must NOT be blocked
+      const u2_r1 = await supertest(testApp)
+        .post('/test-vercel-limiter')
+        .set('X-Vercel-Id', 'bom1::trace-user-2')
+        .set('X-Forwarded-Host', 'fixflow-ai-home-repair-agent-two.vercel.app')
+        .set('X-Vercel-Forwarded-For', '198.51.100.20')
+        .set('X-Forwarded-For', '198.51.100.20, 76.76.21.21');
+      expect(u2_r1.status).toBe(200);
+      expect(u2_r1.body.ok).toBe(true);
+    });
+
+    it('should reject forged Vercel headers with unauthorized forwarded hosts and fall back to req.ip', async () => {
+      const testApp = express();
+      testApp.set('trust proxy', 1);
+      testApp.get('/test-invalid-host', (req: Request, res: Response) => {
+        res.json({ clientIp: extractClientIp(req) });
+      });
+
+      // Attacker tries to spoof Vercel headers but specifies unauthorized host
+      const res = await supertest(testApp)
+        .get('/test-invalid-host')
+        .set('X-Vercel-Id', 'bom1::fake-trace')
+        .set('X-Forwarded-Host', 'malicious-attacker-site.com')
+        .set('X-Vercel-Forwarded-For', '10.0.0.99')
+        .set('X-Forwarded-For', '203.0.113.88');
+
+      expect(res.status).toBe(200);
+      // Must fall back to req.ip (203.0.113.88)
+      expect(res.body.clientIp).toBe('203.0.113.88');
+    });
+
     it('should fall back to socket remoteAddress on direct connections without proxy headers', () => {
       const mockReq = {
         ip: '',

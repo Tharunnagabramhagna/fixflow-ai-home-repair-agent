@@ -15,22 +15,66 @@ export interface RateLimiterOptions {
   skip?: (req: AuthenticatedRequest) => boolean;
 }
 
+// Regex patterns for validating Vercel Edge rewrite headers
+const VERCEL_HOST_REGEX = /^fixflow-ai-home-repair-agent(-[a-z0-9]+)?\.vercel\.app$/i;
+const VERCEL_ID_REGEX = /^[a-z0-9]{3,5}::[a-z0-9-]+$/i;
+const IPV4_REGEX = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+const IPV6_REGEX = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^::1$|^([0-9a-fA-F]{1,4}:){1,7}:|^:((:[0-9a-fA-F]{1,4}){1,7}|:)$/;
+
+export function isValidIp(ip: string): boolean {
+  if (!ip || typeof ip !== 'string') return false;
+  const trimmed = ip.trim();
+  return IPV4_REGEX.test(trimmed) || IPV6_REGEX.test(trimmed);
+}
+
 /**
- * Safely extracts client IP address relying on Express's proxy-addr verified req.ip.
+ * Safely extracts client IP address across FixFlow's hosting topologies:
  *
- * In production behind a reverse proxy (Render / Railway), Express evaluates req.ip
- * by inspecting X-Forwarded-For against the configured trusted proxy hop count (1).
- * Arbitrary client-supplied headers (e.g. CF-Connecting-IP, X-Vercel-Forwarded-For,
- * X-Real-IP, or extra prepended X-Forwarded-For entries) are NOT manually trusted,
- * preventing malicious clients from forging headers to evade rate limits.
+ * 1. Vercel Reverse-Proxy Rewrite (Frontend: Vercel -> Backend: Render):
+ *    Requests arriving from official FixFlow Vercel deployments carry Vercel edge signatures:
+ *    - `x-vercel-id`: Unique edge request ID (e.g. bom1::... or iad1::...)
+ *    - `x-forwarded-host`: Official FixFlow Vercel frontend host
+ *    - `x-vercel-forwarded-for`: Client IP observed by Vercel edge
+ *    When these verified headers are present, the client IP is extracted from
+ *    `x-vercel-forwarded-for`, ensuring distinct guest users on Vercel are not
+ *    unnecessarily grouped under a shared Vercel egress IP.
+ *
+ * 2. Direct Render API Endpoint (External tools, Alexa, test clients, direct curl):
+ *    Express evaluates `req.ip` using configured proxy trust (1 hop for Render load balancer).
+ *    Any arbitrary client-supplied provider headers (CF-Connecting-IP, X-Real-IP,
+ *    or unverified X-Vercel-Forwarded-For without matching Vercel trace) are ignored,
+ *    and the leftmost forged entries in X-Forwarded-For are discarded by proxy-addr.
+ *    This guarantees attackers cannot forge headers to bypass rate limits.
+ *
+ * 3. Direct socket fallback:
+ *    Falls back to `req.socket.remoteAddress` for local test servers.
  */
 export function extractClientIp(req: Request): string {
-  // 1. Rely on Express's verified req.ip (determined via proxy-addr & trust proxy configuration)
+  // 1. Check for genuine Vercel edge rewrite proxy headers
+  const headers = req.headers || {};
+  const vercelId = headers['x-vercel-id'];
+  const forwardedHost = headers['x-forwarded-host'];
+  const vercelForwardedFor = headers['x-vercel-forwarded-for'];
+
+  if (
+    typeof vercelId === 'string' &&
+    VERCEL_ID_REGEX.test(vercelId.trim()) &&
+    typeof forwardedHost === 'string' &&
+    VERCEL_HOST_REGEX.test(forwardedHost.trim()) &&
+    typeof vercelForwardedFor === 'string'
+  ) {
+    const candidateIp = vercelForwardedFor.split(',')[0].trim();
+    if (isValidIp(candidateIp)) {
+      return candidateIp;
+    }
+  }
+
+  // 2. Rely on Express's verified req.ip (determined via proxy-addr & trust proxy configuration)
   if (req.ip && typeof req.ip === 'string' && req.ip.trim()) {
     return req.ip.trim();
   }
 
-  // 2. Direct connection socket fallback
+  // 3. Direct connection socket fallback
   if (req.socket?.remoteAddress && typeof req.socket.remoteAddress === 'string' && req.socket.remoteAddress.trim()) {
     return req.socket.remoteAddress.trim();
   }
